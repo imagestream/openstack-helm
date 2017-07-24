@@ -52,6 +52,8 @@ spec:
               value: {{ .Values.secrets.keyrings.admin }}
             - name: CEPH_STORAGECLASS_ADMIN_SECRET_NAME
               value: {{ .Values.storageclass.admin_secret_name }}
+            - name: CEPH_CLIENT_KEY
+              value: {{ .Values.secrets.keys.admin }}
           command:
             - /opt/ceph/ceph-storage-key.sh
           volumeMounts:

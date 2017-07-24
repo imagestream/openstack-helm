@@ -11,7 +11,7 @@ function kube_ceph_keyring_gen () {
   sed "s|{{"{{"}} key {{"}}"}}|${CEPH_KEY}|" ${CEPH_TEMPLATES_DIR}/${CEPH_KEY_TEMPLATE} | base64 | tr -d '\n'
 }
 
-CEPH_CLIENT_KEY=$(ceph_gen_key)
+[ -z "$CEPH_CLIENT_KEY" ] && CEPH_CLIENT_KEY=$(ceph_gen_key)
 
 function create_kube_key () {
   CEPH_KEYRING=$1

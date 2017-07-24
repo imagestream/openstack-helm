@@ -33,5 +33,7 @@ EOF
   fi
 }
 
+[ -z "$CEPH_KEYRING_KEY" ] && CEPH_KEYRING_KEY=$(ceph_gen_key)
+
 #create_kube_key <ceph_key> <ceph_keyring_name> <ceph_keyring_template> <kube_secret_name>
-create_kube_key $(ceph_gen_key) ${CEPH_KEYRING_NAME} ${CEPH_KEYRING_TEMPLATE} ${KUBE_SECRET_NAME}
+create_kube_key ${CEPH_KEYRING_KEY} ${CEPH_KEYRING_NAME} ${CEPH_KEYRING_TEMPLATE} ${KUBE_SECRET_NAME}

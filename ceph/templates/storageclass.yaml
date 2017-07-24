@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-{{- if .Values.manifests_enabled.deployment }}
+{{- if .Values.manifests_enabled.deployment | or .Values.manifests_enabled.external_ceph }}
 ---
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
@@ -20,7 +20,11 @@ metadata:
     name: {{ .Values.storageclass.name }}
 provisioner: kubernetes.io/rbd
 parameters:
+{{- if .Values.manifests_enabled.external_ceph }}
+    monitors: {{ tuple "ceph_mon" "internal" "mon" . | include "helm-toolkit.endpoints.host_and_port_no_fqdn_endpoint_uri_lookup" }}
+{{- else }}
     monitors: {{ tuple "ceph_mon" "internal" "mon" . | include "helm-toolkit.endpoints.host_and_port_endpoint_uri_lookup" }}
+{{- end }}
     adminId: {{ .Values.storageclass.admin_id }}
     adminSecretName: {{ .Values.storageclass.admin_secret_name }}
     adminSecretNamespace: {{ .Values.storageclass.admin_secret_namespace }}

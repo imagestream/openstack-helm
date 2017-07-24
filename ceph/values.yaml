@@ -16,6 +16,7 @@ manifests_enabled:
   storage_secrets: true
   client_secrets: true
   deployment: true
+  external_ceph: false
 
 replicas:
   rgw: 3
@@ -110,6 +111,10 @@ secrets:
     osd: ceph-bootstrap-osd-keyring
     rgw: ceph-bootstrap-rgw-keyring
     admin: ceph-client-admin-keyring
+  keys:
+    admin:
+    mon:
+    bootstrap:
 
 network:
 #  public: "192.168.0.0/16"
