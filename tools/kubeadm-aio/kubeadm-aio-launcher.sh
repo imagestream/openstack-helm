@@ -23,7 +23,7 @@ sudo mount --make-shared /var/lib/kubelet
 # Cleanup any old deployment
 sudo docker rm -f kubeadm-aio || true
 sudo docker rm -f kubelet || true
-sudo docker ps -aq | xargs -r -l1 sudo docker rm -f
+sudo docker ps -aq | xargs -r -l1 -P16 sudo docker rm -f
 sudo rm -rfv \
     /etc/cni/net.d \
     /etc/kubernetes \
@@ -36,6 +36,8 @@ sudo rm -rfv \
     /var/lib/openstack-helm \
     /var/lib/nfs-provisioner || true
 
+: ${KUBE_CNI:="calico"}
+: ${CNI_POD_CIDR:="192.168.0.0/16"}
 # Launch Container
 sudo docker run \
     -dt \
@@ -53,6 +55,8 @@ sudo docker run \
     --volume=/var/run/docker.sock:/run/docker.sock \
     --env KUBELET_CONTAINER=${KUBEADM_IMAGE} \
     --env KUBE_VERSION=${KUBE_VERSION} \
+    --env KUBE_CNI=${KUBE_CNI} \
+    --env CNI_POD_CIDR=${CNI_POD_CIDR} \
     ${KUBEADM_IMAGE}
 
 echo "Waiting for kubeconfig"

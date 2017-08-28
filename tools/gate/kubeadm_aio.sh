@@ -12,16 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 set -ex
-
+: ${WORK_DIR:="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"}
+source ${WORK_DIR}/tools/gate/vars.sh
 source ${WORK_DIR}/tools/gate/funcs/network.sh
 source ${WORK_DIR}/tools/gate/funcs/kube.sh
 
 kubeadm_aio_reqs_install
 sudo docker pull ${KUBEADM_IMAGE} || kubeadm_aio_build
-
-if [ "x$PVC_BACKEND" == "xceph" ]; then
-  ceph_kube_controller_manager_replace
-  sudo modprobe rbd
-fi
 
 kubeadm_aio_launch

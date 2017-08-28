@@ -21,6 +21,8 @@ labels:
   node_selector_key: openstack-control-plane
   node_selector_value: enabled
 
+release_group: null
+
 images:
   bootstrap: docker.io/kolla/ubuntu-source-senlin-api:3.0.3
   db_init: docker.io/kolla/ubuntu-source-senlin-api:3.0.3
@@ -38,8 +40,52 @@ conf:
     override:
     append:
   policy:
-    override:
-    append:
+    context_is_admin: role:admin
+    deny_everybody: "!"
+    build_info:build_info: ''
+    profile_types:index: ''
+    profile_types:get: ''
+    policy_types:index: ''
+    policy_types:get: ''
+    clusters:index: ''
+    clusters:create: ''
+    clusters:delete: ''
+    clusters:get: ''
+    clusters:action: ''
+    clusters:update: ''
+    clusters:collect: ''
+    profiles:index: ''
+    profiles:create: ''
+    profiles:get: ''
+    profiles:delete: ''
+    profiles:update: ''
+    profiles:validate: ''
+    nodes:index: ''
+    nodes:create: ''
+    nodes:get: ''
+    nodes:action: ''
+    nodes:update: ''
+    nodes:delete: ''
+    policies:index: ''
+    policies:create: ''
+    policies:get: ''
+    policies:update: ''
+    policies:delete: ''
+    policies:validate: ''
+    cluster_policies:index: ''
+    cluster_policies:attach: ''
+    cluster_policies:detach: ''
+    cluster_policies:update: ''
+    cluster_policies:get: ''
+    receivers:index: ''
+    receivers:create: ''
+    receivers:get: ''
+    receivers:delete: ''
+    actions:index: ''
+    actions:get: ''
+    events:index: ''
+    events:get: ''
+    webhooks:trigger: ''
   senlin:
     override:
     append:
@@ -48,6 +94,7 @@ conf:
         auth_token:
           auth_type: password
           auth_version: v3
+          memcache_security_strategy: ENCRYPT
     senlin_api:
       senlin:
         config:
@@ -206,6 +253,15 @@ endpoints:
         default: 5672
 
 pod:
+  user:
+    senlin:
+      uid: 1000
+  affinity:
+      anti:
+        type:
+          default: preferredDuringSchedulingIgnoredDuringExecution
+        topologyKey:
+          default: kubernetes.io/hostname
   mounts:
     senlin_api:
       init_container: null
@@ -299,3 +355,21 @@ pod:
         limits:
           memory: "1024Mi"
           cpu: "2000m"
+
+manifests:
+  configmap_bin: true
+  configmap_etc: true
+  deployment_api: true
+  ingress_api: true
+  job_bootstrap: true
+  job_db_init: true
+  job_db_sync: true
+  job_ks_endpoints: true
+  job_ks_service: true
+  job_ks_user: true
+  pdb_api: true
+  secret_db: true
+  secret_keystone: true
+  service_ingress_api: true
+  service_api: true
+  statefulset_engine: true

@@ -31,8 +31,8 @@ You should install the ``kubectl`` and ``helm`` binaries:
 
 .. code:: bash
 
-    KUBE_VERSION=v1.6.7
-    HELM_VERSION=v2.5.0
+    KUBE_VERSION=v1.6.8
+    HELM_VERSION=v2.5.1
 
     TMP_DIR=$(mktemp -d)
     curl -sSL https://storage.googleapis.com/kubernetes-release/release/${KUBE_VERSION}/bin/linux/amd64/kubectl -o ${TMP_DIR}/kubectl
@@ -57,7 +57,7 @@ repo run:
 
 .. code:: bash
 
-    export KUBEADM_IMAGE=openstackhelm/kubeadm-aio:v1.6.7
+    export KUBEADM_IMAGE=openstackhelm/kubeadm-aio:v1.6.8
     sudo docker build --pull -t ${KUBEADM_IMAGE} tools/kubeadm-aio
 
 Deploy the AIO environment
@@ -67,14 +67,22 @@ To launch the environment run:
 
 .. code:: bash
 
-    export KUBEADM_IMAGE=openstackhelm/kubeadm-aio:v1.6.7
-    export KUBE_VERSION=v1.6.7
+    export KUBEADM_IMAGE=openstackhelm/kubeadm-aio:v1.6.8
+    export KUBE_VERSION=v1.6.8
     ./tools/kubeadm-aio/kubeadm-aio-launcher.sh
     export KUBECONFIG=${HOME}/.kubeadm-aio/admin.conf
 
 Once this has run without errors, you should hopefully have a Kubernetes single
 node environment running, with Helm, Calico, appropriate RBAC rules and node
 labels to get developing.
+
+Prior to launching you can also optionally set the following environment
+variables to control aspects of the CNI used:
+
+.. code:: bash
+
+    export KUBE_CNI=calico # or "canal" "weave" "flannel"
+    export CNI_POD_CIDR=192.168.0.0/16
 
 If you wish to use this environment as the primary Kubernetes environment on
 your host you may run the following, but note that this will wipe any previous

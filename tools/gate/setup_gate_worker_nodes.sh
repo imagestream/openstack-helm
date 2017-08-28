@@ -12,16 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 set -ex
-
-: ${SSH_PRIVATE_KEY:="/etc/nodepool/id_rsa"}
-: ${PRIMARY_NODE_IP:="$(cat /etc/nodepool/primary_node_private | tail -1)"}
-: ${SUB_NODE_IPS:="$(cat /etc/nodepool/sub_nodes_private)"}
+: ${WORK_DIR:="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"}
+source ${WORK_DIR}/tools/gate/vars.sh
 export SUB_NODE_COUNT="$(($(echo ${SUB_NODE_IPS} | wc -w) + 1))"
 
 sudo chown $(whoami) ${SSH_PRIVATE_KEY}
 sudo chmod 600 ${SSH_PRIVATE_KEY}
 
-KUBEADM_TOKEN=$(sudo docker exec kubeadm-aio kubeadm token list | tail -n -1 | awk '{ print $1 }')
+KUBEADM_TOKEN=$(sudo docker exec kubeadm-aio kubeadm token list | awk '/The default bootstrap token/ { print $1 ; exit }')
 
 SUB_NODE_PROVISION_SCRIPT=$(mktemp --suffix=.sh)
 for SUB_NODE in $SUB_NODE_IPS ; do
@@ -34,6 +32,10 @@ for SUB_NODE in $SUB_NODE_IPS ; do
     export PRIMARY_NODE_IP=${PRIMARY_NODE_IP}; \
     export KUBEADM_IMAGE=${KUBEADM_IMAGE}; \
     export PVC_BACKEND=${PVC_BACKEND}; \
+    export LOOPBACK_CREATE=${LOOPBACK_CREATE}; \
+    export LOOPBACK_DEVS=${LOOPBACK_DEVS}; \
+    export LOOPBACK_SIZE=${LOOPBACK_SIZE}; \
+    export LOOPBACK_DIR=${LOOPBACK_DIR}; \
     bash ${WORK_DIR}/tools/gate/provision_gate_worker_node.sh"
 EOS
 done

@@ -17,6 +17,8 @@
 # Declare name/value pairs to be passed into your templates.
 # name: value
 
+release_group: null
+
 labels:
   agent:
     compute:
@@ -48,7 +50,7 @@ labels:
     node_selector_value: enabled
 
 images:
-  test: docker.io/kolla/ubuntu-binary-rally:4.0.0
+  test: docker.io/kolla/ubuntu-source-rally:4.0.0
   db_init: docker.io/kolla/ubuntu-source-nova-api:3.0.3
   db_sync: docker.io/kolla/ubuntu-source-nova-api:3.0.3
   ks_user: docker.io/kolla/ubuntu-source-kolla-toolbox:3.0.3
@@ -58,6 +60,7 @@ images:
   conductor: docker.io/kolla/ubuntu-source-nova-conductor:3.0.3
   scheduler: docker.io/kolla/ubuntu-source-nova-scheduler:3.0.3
   novncproxy: docker.io/kolla/ubuntu-source-nova-novncproxy:3.0.3
+  novncproxy_assets: docker.io/kolla/ubuntu-source-nova-novncproxy:3.0.3
   consoleauth: docker.io/kolla/ubuntu-source-nova-consoleauth:3.0.3
   compute: docker.io/kolla/ubuntu-source-nova-compute:3.0.3
   libvirt: docker.io/kolla/ubuntu-source-nova-libvirt:3.0.3
@@ -67,21 +70,42 @@ images:
 
 bootstrap:
   enabled: true
+  script: null
   flavors:
-    m1_tiny:
-        name: "m1.tiny"
-        id: "auto"
-        ram: 512
-        disk: 20
-        vcpus: 1
+    enabled: true
+    options:
+      m1_tiny:
+          name: "m1.tiny"
+          id: "auto"
+          ram: 512
+          disk: 1
+          vcpus: 1
+      m1_small:
+          name: "m1.small"
+          id: "auto"
+          ram: 2048
+          disk: 20
+          vcpus: 1
+      m1_medium:
+          name: "m1.medium"
+          id: "auto"
+          ram: 4096
+          disk: 40
+          vcpus: 2
+      m1_large:
+          name: "m1.large"
+          id: "auto"
+          ram: 8192
+          disk: 80
+          vcpus: 4
+      m1_xlarge:
+          name: "m1.xlarge"
+          id: "auto"
+          ram: 16384
+          disk: 160
+          vcpus: 8
 
 network:
-  dns:
-    servers:
-      - "10.96.0.10"
-      - "8.8.8.8"
-    kubernetes_domain: "cluster.local"
-    other_domains: ""
   osapi:
     port: 8774
     ingress:
@@ -106,12 +130,11 @@ network:
     targetPort: 6080
 
 ceph:
-  enabled: false
+  enabled: true
   monitors: []
-  cinder_user: "cinder"
+  cinder_user: "admin"
   cinder_keyring: null
-  nova_pool: "vms"
-  secret_uuid: ""
+  secret_uuid: 457eb676-33da-42ec-9a8c-9293d545c337
 
 libvirt:
   listen_addr: 0.0.0.0
@@ -242,10 +265,36 @@ console:
       vncserver_proxyclient_interface:
 
 conf:
+  rally_tests:
+    run_tempest: false
+    override:
+    append:
   paste:
     override:
     append:
   policy:
+    override:
+    append:
+  nova_sudoers:
+    override:
+    append:
+  rootwrap:
+    override:
+    append:
+  rootwrap_filters:
+    api_metadata:
+      override:
+      append:
+    compute:
+      override:
+      append:
+    network:
+      override:
+      append:
+  libvirtd:
+    override:
+    append:
+  qemu:
     override:
     append:
   nova:
@@ -337,7 +386,7 @@ conf:
         auth_token:
           auth_type: password
           auth_version: v3
-
+          memcache_security_strategy: ENCRYPT
     libvirt:
       nova:
         conf:
@@ -345,8 +394,8 @@ conf:
           images_type: qcow2
           images_rbd_pool: vms
           images_rbd_ceph_conf: /etc/ceph/ceph.conf
-          rbd_user: cinder
-          rbd_secret_uuid: null
+          rbd_user: admin
+          rbd_secret_uuid: 457eb676-33da-42ec-9a8c-9293d545c337
           disk_cachemodes: "network=writeback"
           hw_disk_discard: unmap
     upgrade_levels:
@@ -516,6 +565,15 @@ endpoints:
         public: 80
 
 pod:
+  user:
+    nova:
+      uid: 1000
+  affinity:
+      anti:
+        type:
+          default: preferredDuringSchedulingIgnoredDuringExecution
+        topologyKey:
+          default: kubernetes.io/hostname
   mounts:
     nova_compute:
       init_container: null
@@ -690,3 +748,34 @@ pod:
         limits:
           memory: "1024Mi"
           cpu: "2000m"
+
+manifests:
+  configmap_bin: true
+  configmap_etc: true
+  daemonset_compute: true
+  daemonset_libvirt: true
+  deployment_api_metadata: true
+  deployment_api_osapi: true
+  deployment_conductor: true
+  deployment_consoleauth: true
+  deployment_novncproxy: true
+  deployment_scheduler: true
+  ingress_metadata: true
+  ingress_osapi: true
+  job_bootstrap: true
+  job_db_init: true
+  job_db_sync: true
+  job_ks_endpoints: true
+  job_ks_service: true
+  job_ks_user: true
+  pdb_metadata: true
+  pdb_osapi: true
+  pod_rally_test: true
+  secret_db_api: true
+  secret_db: true
+  secret_keystone: true
+  service_ingress_metadata: true
+  service_ingress_osapi: true
+  service_metadata: true
+  service_novncproxy: true
+  service_osapi: true

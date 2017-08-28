@@ -25,6 +25,12 @@ images:
   pull_policy: "IfNotPresent"
 
 pod:
+  affinity:
+      anti:
+        type:
+          default: preferredDuringSchedulingIgnoredDuringExecution
+        topologyKey:
+          default: kubernetes.io/hostname
   replicas:
     ingress: 1
     error_page: 1
@@ -75,3 +81,6 @@ endpoints:
       https: 443
 
 deployment_type: Deployment
+
+config:
+  enable-underscores-in-headers: "true"

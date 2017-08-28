@@ -24,8 +24,10 @@ labels:
   node_selector_key: openstack-control-plane
   node_selector_value: enabled
 
+release_group: null
+
 images:
-  test: docker.io/kolla/ubuntu-binary-rally:4.0.0
+  test: docker.io/kolla/ubuntu-source-rally:4.0.0
   db_init: docker.io/kolla/ubuntu-source-glance-api:3.0.3
   db_sync: docker.io/kolla/ubuntu-source-glance-api:3.0.3
   ks_user: docker.io/kolla/ubuntu-source-kolla-toolbox:3.0.3
@@ -55,6 +57,7 @@ bootstrap:
 
 conf:
   rally_tests:
+    run_tempest: false
     override:
     append:
     images:
@@ -73,8 +76,52 @@ conf:
     override:
     append:
   policy:
-    override:
-    append:
+    context_is_admin: role:admin
+    default: role:admin
+    add_image: ''
+    delete_image: ''
+    get_image: ''
+    get_images: ''
+    modify_image: ''
+    publicize_image: role:admin
+    copy_from: ''
+    download_image: ''
+    upload_image: ''
+    delete_image_location: ''
+    get_image_location: ''
+    set_image_location: ''
+    add_member: ''
+    delete_member: ''
+    get_member: ''
+    get_members: ''
+    modify_member: ''
+    manage_image_cache: role:admin
+    get_task: role:admin
+    get_tasks: role:admin
+    add_task: role:admin
+    modify_task: role:admin
+    deactivate: ''
+    reactivate: ''
+    get_metadef_namespace: ''
+    get_metadef_namespaces: ''
+    modify_metadef_namespace: ''
+    add_metadef_namespace: ''
+    get_metadef_object: ''
+    get_metadef_objects: ''
+    modify_metadef_object: ''
+    add_metadef_object: ''
+    list_metadef_resource_types: ''
+    get_metadef_resource_type: ''
+    add_metadef_resource_type_association: ''
+    get_metadef_property: ''
+    get_metadef_properties: ''
+    modify_metadef_property: ''
+    add_metadef_property: ''
+    get_metadef_tag: ''
+    get_metadef_tags: ''
+    modify_metadef_tag: ''
+    add_metadef_tag: ''
+    add_metadef_tags: ''
   glance:
     override:
     append:
@@ -87,6 +134,7 @@ conf:
         auth_token:
           auth_type: password
           auth_version: v3
+          memcache_security_strategy: ENCRYPT
     glance_store:
       glance:
         store:
@@ -97,6 +145,10 @@ conf:
           rbd_store_user: admin
           rbd_store_ceph_conf: /etc/ceph/ceph.conf
           filesystem_store_datadir: /var/lib/glance/images
+    paste_deploy:
+      glance:
+        api:
+          flavor: keystone
   paste_registry:
     override:
     append:
@@ -112,6 +164,11 @@ conf:
         auth_token:
           auth_type: password
           auth_version: v3
+          memcache_security_strategy: ENCRYPT
+    paste_deploy:
+      glance:
+        registry:
+          flavor: keystone
 
 network:
   api:
@@ -305,6 +362,15 @@ endpoints:
         default: 5672
 
 pod:
+  user:
+    glance:
+      uid: 1000
+  affinity:
+      anti:
+        type:
+          default: preferredDuringSchedulingIgnoredDuringExecution
+        topologyKey:
+          default: kubernetes.io/hostname
   mounts:
     glance_api:
       init_container: null
@@ -402,3 +468,28 @@ pod:
         limits:
           memory: "1024Mi"
           cpu: "2000m"
+
+manifests:
+  configmap_bin: true
+  configmap_etc: true
+  deployment_api: true
+  deployment_registry: true
+  ingress_api: true
+  ingress_registry: true
+  job_bootstrap: true
+  job_clean: true
+  job_db_init: true
+  job_db_sync: true
+  job_ks_endpoints: true
+  job_ks_service: true
+  job_ks_user: true
+  pdb_api: true
+  pdb_registry: true
+  pod_rally_test: true
+  pvc_images: true
+  secret_db: true
+  secret_keystone: true
+  service_ingress_api: true
+  service_ingress_registry: true
+  service_api: true
+  service_registry: true

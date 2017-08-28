@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-set -e
 
 function helm_install {
   if [ "x$HOST_OS" == "xubuntu" ]; then
@@ -85,26 +84,30 @@ function helm_test_deployment {
     TIMEOUT=$2
   fi
 
+  NAME="${DEPLOYMENT}-rally-test"
+  if [ "$#" -gt 2 ]; then
+    NAME="${DEPLOYMENT}-test"
+  fi
+
   # Get the namespace of the chart via the Helm release
   NAMESPACE=$(helm status ${DEPLOYMENT} |  awk '/^NAMESPACE/ { print $NF }')
 
   helm test --timeout ${TIMEOUT} ${DEPLOYMENT}
   mkdir -p ${LOGS_DIR}/rally
-  kubectl logs -n ${NAMESPACE} ${DEPLOYMENT}-rally-test > ${LOGS_DIR}/rally/${DEPLOYMENT}
-  kubectl delete -n ${NAMESPACE} pod ${DEPLOYMENT}-rally-test
+  kubectl logs -n ${NAMESPACE} ${NAME} > ${LOGS_DIR}/rally/${DEPLOYMENT}
+  kubectl delete -n ${NAMESPACE} pod ${NAME}
 }
 
 function helm_plugin_template_install {
-  # NOTE(portdirect): the helm plugin install command does not seem to respect the --version flag with helm 2.3.0
-  #helm plugin install https://github.com/technosophos/helm-template --version 2.3.0.1
-  mkdir -p ${HOME}/.helm/plugins/helm-template
-  curl -sSL https://github.com/technosophos/helm-template/releases/download/2.3.0%2B1/helm-template-linux-2.3.0.1.tgz | tar -zxv -C ${HOME}/.helm/plugins/helm-template
+  helm plugin install https://github.com/technosophos/helm-template
 }
 
 function helm_template_run {
   mkdir -p ${LOGS_DIR}/templates
-  for CHART in $(helm search | awk '{ print $1 }' | tail -n +2 | awk -F '/' '{ print $NF }'); do
+  set +x
+  for CHART in $(helm search | tail -n +2 | awk '{ print $1 }' | awk -F '/' '{ print $NF }'); do
     echo "Running Helm template plugin on chart: $CHART"
     helm template --verbose $CHART > ${LOGS_DIR}/templates/$CHART
   done
+  set -x
 }

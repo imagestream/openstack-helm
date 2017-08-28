@@ -1,17 +1,20 @@
-# Copyright 2017 The Openstack-Helm Authors.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+{{/*
+Copyright 2017 The Openstack-Helm Authors.
 
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+   http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/}}
+
+{{- if .Values.manifests.deployment_api_metadata }}
 {{- $envAll := . }}
 {{- $dependencies := .Values.dependencies.api }}
 {{- $mounts_nova_api_metadata := .Values.pod.mounts.nova_api_metadata.nova_api_metadata }}
@@ -44,6 +47,8 @@ spec:
           image: {{ .Values.images.api }}
           imagePullPolicy: {{ .Values.images.pull_policy }}
 {{ tuple $envAll $envAll.Values.pod.resources.api_metadata | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
+          securityContext:
+            runAsUser: {{ .Values.pod.user.nova.uid }}
           command:
             - /tmp/nova-api-metadata.sh
             - start
@@ -87,7 +92,30 @@ spec:
               mountPath: /etc/nova/policy.yaml
               subPath: policy.yaml
               readOnly: true
-{{- if $mounts_nova_api_metadata.volumeMounts }}{{ toYaml $mounts_nova_api_metadata.volumeMounts | indent 12 }}{{ end }}
+            - name: nova-etc
+              # NOTE (Portdirect): We mount here to overide Kollas custom
+              # sudoers file when using Kolla images, this location will
+              # also work fine for other images.
+              mountPath: /etc/sudoers.d/kolla_nova_sudoers
+              subPath: nova_sudoers
+              readOnly: true
+            - name: nova-etc
+              mountPath: /etc/nova/rootwrap.conf
+              subPath: rootwrap.conf
+              readOnly: true
+            - name: nova-etc
+              mountPath: /etc/nova/rootwrap.d/api-metadata.filters
+              subPath: api-metadata.filters
+              readOnly: true
+            - name: nova-etc
+              mountPath: /etc/nova/rootwrap.d/compute.filters
+              subPath: compute.filters
+              readOnly: true
+            - name: nova-etc
+              mountPath: /etc/nova/rootwrap.d/network.filters
+              subPath: network.filters
+              readOnly: true
+{{ if $mounts_nova_api_metadata.volumeMounts }}{{ toYaml $mounts_nova_api_metadata.volumeMounts | indent 12 }}{{ end }}
       volumes:
         - name: nova-bin
           configMap:
@@ -97,4 +125,5 @@ spec:
           configMap:
             name: nova-etc
             defaultMode: 0444
-{{- if $mounts_nova_api_metadata.volumes }}{{ toYaml $mounts_nova_api_metadata.volumes | indent 8 }}{{ end }}
+{{ if $mounts_nova_api_metadata.volumes }}{{ toYaml $mounts_nova_api_metadata.volumes | indent 8 }}{{ end }}
+{{- end }}
