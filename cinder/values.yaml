@@ -349,16 +349,6 @@ conf:
     override:
     append:
     # Those options will be written to backends.conf as-is.
-    rbd1:
-      volume_driver: cinder.volume.drivers.rbd.RBDDriver
-      volume_backend_name: rbd1
-      rbd_pool: volumes
-      rbd_ceph_conf: "/etc/ceph/ceph.conf"
-      rbd_flatten_volume_from_snapshot: false
-      rbd_max_clone_depth: 5
-      rbd_store_chunk_size: 4
-      rados_connect_timeout: -1
-      rbd_user: "admin"
   rally_tests:
     run_tempest: false
     override:

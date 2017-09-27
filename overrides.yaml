@@ -1,0 +1,121 @@
+manifests_enabled:
+  storage_secrets: true
+  client_secrets: true
+  deployment: false
+  external_ceph: true
+
+# Nova metadata fails due to hardcoded IPs -- disable for now
+manifests:
+  ingress_metadata: false
+  service_ingress_metadata: false
+  service_metadata: false
+
+# External ceph cluster parameters
+secrets:
+  keys:
+    admin: "AQBJu8pZMgc3BRAAVbTGIyOiefv20diVq9NMEA=="
+
+#network:
+#  interface:
+#    external: em2
+
+# mariadb volume
+volume:
+  size: 20Gi
+
+conf:
+  # Neutron parameters
+  neutron:
+    nova:
+      nova:
+        auth:
+          password: 23b65c67a6ab54fa12abbd2d953f4c91
+  ml2_conf:
+    ml2_type_vlan:
+      neutron:
+        ml2:
+          network_vlan_ranges: "external:1:4094"
+  # Ceph parameters
+  ceph:
+    config:
+      global:
+        mon_host: 10.20.0.21
+        uuid: 3e8caec3-10aa-4534-a665-785d3c2cb99a
+  nova:
+    neutron:
+      nova:
+        conf:
+          password: 23b65c67a6ab54fa12abbd2d953f4c91
+          metadata_proxy_shared_secret: d2850c7aef78139a9aac69dbca47aeb9
+    libvirt:
+      nova:
+        conf:
+          # qemu for AWS
+          virt_type: qemu
+          # virt_type: kvm
+          images_type: rbd
+          rbd_secret_uuid: 0093c4d9-87e7-401f-a4bc-dc12fd0798d4
+  cinder:
+    default:
+      cinder:
+        enabled_backends: "replicated,erasure_coded"
+  backends:
+    replicated:
+      volume_driver: cinder.volume.drivers.rbd.RBDDriver
+      volume_backend_name: replicated
+      rbd_pool: volumes
+      rbd_ceph_conf: "/etc/ceph/ceph.conf"
+      rbd_flatten_volume_from_snapshot: false
+      rbd_max_clone_depth: 5
+      rbd_store_chunk_size: 4
+      rados_connect_timeout: -1
+      rbd_user: "admin"
+    erasure_coded:
+      volume_driver: cinder.volume.drivers.rbd.RBDDriver
+      volume_backend_name: erasure_coded
+      rbd_pool: volumes-ec
+      rbd_ceph_conf: "/etc/ceph/ceph.conf"
+      rbd_flatten_volume_from_snapshot: false
+      rbd_max_clone_depth: 5
+      rbd_store_chunk_size: 4
+      rados_connect_timeout: -1
+      rbd_user: "admin"
+
+# Rabbitmq
+auth:
+  default_pass: 23b65c67a6ab54fa12abbd2d953f4c91
+  admin_pass: 23b65c67a6ab54fa12abbd2d953f4c91
+
+ceph:
+  cinder_user: admin
+  secret_uuid: 0093c4d9-87e7-401f-a4bc-dc12fd0798d4
+
+endpoints:
+  ceph_mon:
+    hosts:
+      default: 10.20.0.21
+  oslo_db:
+    auth:
+      admin:
+        password: 23b65c67a6ab54fa12abbd2d953f4c91
+      user:
+        password: 23b65c67a6ab54fa12abbd2d953f4c91
+  oslo_db_api:
+    auth:
+      admin:
+        password: 23b65c67a6ab54fa12abbd2d953f4c91
+      user:
+        password: 23b65c67a6ab54fa12abbd2d953f4c91
+  oslo_messaging:
+    auth:
+      admin:
+        password: 23b65c67a6ab54fa12abbd2d953f4c91
+      user:
+        password: 23b65c67a6ab54fa12abbd2d953f4c91
+  identity:
+    auth:
+      admin:
+        password: 23b65c67a6ab54fa12abbd2d953f4c91
+      user:
+        password: 23b65c67a6ab54fa12abbd2d953f4c91
+
