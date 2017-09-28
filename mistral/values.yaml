@@ -24,13 +24,13 @@ labels:
 release_group: null
 
 images:
-  bootstrap: docker.io/kolla/ubuntu-source-mistral-api:3.0.3
+  bootstrap: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
   dep_check: docker.io/kolla/ubuntu-source-kubernetes-entrypoint:4.0.0
-  db_init: docker.io/kolla/ubuntu-source-mistral-api:3.0.3
+  db_init: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
   db_sync: docker.io/kolla/ubuntu-source-mistral-api:3.0.3
-  ks_user: docker.io/kolla/ubuntu-source-kolla-toolbox:3.0.3
-  ks_service: docker.io/kolla/ubuntu-source-kolla-toolbox:3.0.3
-  ks_endpoints: docker.io/kolla/ubuntu-source-kolla-toolbox:3.0.3
+  ks_user: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
+  ks_service: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
+  ks_endpoints: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
   api: docker.io/kolla/ubuntu-source-mistral-api:3.0.3
   engine: docker.io/kolla/ubuntu-source-mistral-engine:3.0.3
   event_engine: docker.io/kolla/ubuntu-source-mistral-engine:3.0.3
@@ -129,6 +129,7 @@ secrets:
 # values, but should include all endpoints
 # required by this chart
 endpoints:
+  cluster_domain_suffix: cluster.local
   identity:
     name: keystone
     auth:
@@ -150,6 +151,8 @@ endpoints:
     hosts:
       default: keystone-api
       public: keystone
+    host_fqdn_override:
+      default: null
     path:
       default: /v3
     scheme:
@@ -164,6 +167,8 @@ endpoints:
     hosts:
       default: mistral-api
       public: mistral
+    host_fqdn_override:
+      default: null
     path:
       default: /v2
     scheme:
@@ -182,6 +187,8 @@ endpoints:
         password: password
     hosts:
       default: mariadb
+    host_fqdn_override:
+      default: null
     path: /mistral
     scheme: mysql+pymysql
     port:
@@ -197,6 +204,8 @@ endpoints:
         password: password
     hosts:
       default: rabbitmq
+    host_fqdn_override:
+      default: null
     path: /
     scheme: rabbit
     port:
@@ -205,6 +214,8 @@ endpoints:
   oslo_cache:
     hosts:
       default: memcached
+    host_fqdn_override:
+      default: null
     port:
       memcache:
         default: 11211
@@ -263,30 +274,19 @@ conf:
     event_triggers:list: rule:admin_or_owner
     event_triggers:update: rule:admin_or_owner
   mistral:
-    override:
-    append:
-    default:
-      mistral:
-        conf:
+    DEFAULT:
+      transport_url: null
     api:
-      mistral:
-        config:
-          port: 8989
-          api_workers: 8
+      port: 8989
+      api_workers: 8
     coordination:
-      mistral:
-        config:
-          backend_url:
+      backend_url:
     database:
-      oslo:
-        db:
-          max_retries: -1
+      max_retries: -1
     keystone_authtoken:
-      keystonemiddleware:
-        auth_token:
-          auth_type: password
-          auth_version: v3
-          memcache_security_strategy: ENCRYPT
+      auth_type: password
+      auth_version: v3
+      memcache_security_strategy: ENCRYPT
 
 pod:
   user:

@@ -43,9 +43,9 @@ spec:
           env:
             - name: OS_BOOTSTRAP_ADMIN_URL
               value: {{ tuple "identity" "admin" "admin" . | include "helm-toolkit.endpoints.keystone_endpoint_uri_lookup" }}
-            - name: OS_BOOTSTRAP_PUBLIC_URL
-              value: {{ tuple "identity" "internal" "api" . | include "helm-toolkit.endpoints.keystone_endpoint_uri_lookup" }}
             - name: OS_BOOTSTRAP_INTERNAL_URL
+              value: {{ tuple "identity" "internal" "api" . | include "helm-toolkit.endpoints.keystone_endpoint_uri_lookup" }}
+            - name: OS_BOOTSTRAP_PUBLIC_URL
               value: {{ tuple "identity" "public" "api" . | include "helm-toolkit.endpoints.keystone_endpoint_uri_lookup" }}
 {{- with $env := dict "ksUserSecret" .Values.secrets.identity.admin }}
 {{- include "helm-toolkit.snippets.keystone_openrc_env_vars" $env | indent 12 }}
@@ -63,9 +63,9 @@ spec:
             mountPath: /tmp/db-sync.sh
             subPath: db-sync.sh
             readOnly: true
-{{- if eq .Values.conf.keystone.token.keystone.provider "fernet" }}
+{{- if eq .Values.conf.keystone.token.provider "fernet" }}
           - name: keystone-fernet-keys
-            mountPath: {{ .Values.conf.keystone.fernet_tokens.keystone.key_repository }}
+            mountPath: {{ .Values.conf.keystone.fernet_tokens.key_repository }}
 {{- end }}
 {{ if $mounts_keystone_db_sync.volumeMounts }}{{ toYaml $mounts_keystone_db_sync.volumeMounts | indent 10 }}{{ end }}
       volumes:
@@ -79,7 +79,7 @@ spec:
         configMap:
           name: keystone-bin
           defaultMode: 0555
-{{- if eq .Values.conf.keystone.token.keystone.provider "fernet" }}
+{{- if eq .Values.conf.keystone.token.provider "fernet" }}
       - name: keystone-fernet-keys
         secret:
           secretName: keystone-fernet-keys

@@ -24,14 +24,15 @@ limitations under the License.
 {{- $type := index . 0 -}}
 {{- $endpoint := index . 1 -}}
 {{- $context := index . 2 -}}
-{{- $endpointMap := index $context.Values.endpoints $type }}
-{{- $fqdn := default "svc.cluster.local" $context.Release.Namespace -}}
-{{- if $context.Values.endpoints.fqdn -}}
-{{- $fqdn := $context.Values.endpoints.fqdn -}}
-{{- end -}}
+{{- $typeYamlSafe := $type | replace "-" "_" }}
+{{- $clusterSuffix := printf "%s.%s" "svc" $context.Values.endpoints.cluster_domain_suffix }}
+{{- $endpointMap := index $context.Values.endpoints $typeYamlSafe }}
 {{- with $endpointMap -}}
+{{- $namespace := .namespace | default $context.Release.Namespace }}
 {{- $endpointScheme := .scheme }}
 {{- $endpointHost := index .hosts $endpoint | default .hosts.default }}
-{{- printf "%s.%s" $endpointHost $fqdn -}}
+{{- $endpointClusterHostname := printf "%s.%s.%s" $endpointHost $namespace $clusterSuffix }}
+{{- $endpointHostname := index .host_fqdn_override $endpoint | default .host_fqdn_override.default | default $endpointClusterHostname }}
+{{- printf "%s" $endpointHostname -}}
 {{- end -}}
 {{- end -}}

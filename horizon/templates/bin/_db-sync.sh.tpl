@@ -18,4 +18,8 @@ limitations under the License.
 
 set -ex
 
-exec /var/lib/kolla/venv/bin/manage.py migrate
+SITE_PACKAGES_ROOT=$(python -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())")
+rm -f ${SITE_PACKAGES_ROOT}/openstack_dashboard/local/local_settings.py
+ln -s /etc/openstack-dashboard/local_settings ${SITE_PACKAGES_ROOT}/openstack_dashboard/local/local_settings.py
+
+exec /tmp/manage.py migrate --noinput

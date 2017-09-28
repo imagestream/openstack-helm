@@ -23,8 +23,8 @@ source /etc/os-release
 export HOST_OS=${HOST_OS:="${ID}"}
 
 # Set versions of K8s and Helm to use
-export HELM_VERSION=${HELM_VERSION:-"v2.5.1"}
-export KUBE_VERSION=${KUBE_VERSION:-"v1.6.8"}
+export HELM_VERSION=${HELM_VERSION:-"v2.6.1"}
+export KUBE_VERSION=${KUBE_VERSION:-"v1.7.5"}
 
 # Set K8s-AIO options
 export KUBECONFIG=${KUBECONFIG:="${HOME}/.kubeadm-aio/admin.conf"}
@@ -37,23 +37,43 @@ export KUBE_CNI=${KUBE_CNI:="calico"}
 # Set PVC Backend
 export PVC_BACKEND=${PVC_BACKEND:-"ceph"}
 
+# Set Object Storage options
+export CEPH_RGW_KEYSTONE_ENABLED=${CEPH_RGW_KEYSTONE_ENABLED:-"true"}
+export OPENSTACK_OBJECT_STORAGE=${OPENSTACK_OBJECT_STORAGE:-"radosgw"}
+
+# Set Glance Backend options
+export GLANCE=${GLANCE:-"radosgw"}
+
+# Set SDN Plugin
+# possible values: ovs, linuxbridge
+export SDN_PLUGIN=${SDN_PLUGIN:-"ovs"}
+
 # Set Upstream DNS
-export UPSTREAM_DNS=${UPSTREAM_DNS:-"8.8.8.8"}
+export UPSTREAM_DNS1=${UPSTREAM_DNS1:-"8.8.8.8"}
+export UPSTREAM_DNS2=${UPSTREAM_DNS2:-"8.8.4.4"}
 
 # Set gate script timeouts
-export SERVICE_LAUNCH_TIMEOUT=${SERVICE_LAUNCH_TIMEOUT:="600"}
+export NODE_START_TIMEOUT=${NODE_START_TIMEOUT:="480"}
+export POD_START_TIMEOUT_SYSTEM=${POD_START_TIMEOUT_SYSTEM:="480"}
+export POD_START_TIMEOUT_OPENSTACK=${POD_START_TIMEOUT_OPENSTACK:="600"}
+export POD_START_TIMEOUT_DEFAULT=${POD_START_TIMEOUT_DEFAULT:="480"}
+export POD_START_TIMEOUT_CEPH=${POD_START_TIMEOUT_CEPH:="600"}
 export SERVICE_TEST_TIMEOUT=${SERVICE_TEST_TIMEOUT:="600"}
 
 # Setup Loopback device options
 export LOOPBACK_CREATE=${LOOPBACK_CREATE:="false"}
-export LOOPBACK_DEVS=${LOOPBACK_DEVS:="3"}
-export LOOPBACK_SIZE=${LOOPBACK_SIZE:="500M"}
+export LOOPBACK_DEV_COUNT=${LOOPBACK_DEV_COUNT:="3,3,3"}
+export LOOPBACK_SIZES=${LOOPBACK_SIZES:="8192M,1024M,1024M"}
+export LOOPBACK_NAMES=${LOOPBACK_NAMES:="cephosd,cephjournal,swift"}
 export LOOPBACK_DIR=${LOOPBACK_DIR:="/var/lib/iscsi-loopback"}
+export LOOPBACK_LOCAL_DISC_INFO=${LOOPBACK_LOCAL_DISC_INFO:="/tmp/loopback-local-disc-info"}
+export LOOPBACK_DEV_INFO=${LOOPBACK_DEV_INFO:="/tmp/loopback-dev-info"}
 
 # Setup Multinode params
 export SSH_PRIVATE_KEY=${SSH_PRIVATE_KEY:="/etc/nodepool/id_rsa"}
 export PRIMARY_NODE_IP=${PRIMARY_NODE_IP:="$(cat /etc/nodepool/primary_node | tail -1)"}
 export SUB_NODE_IPS=${SUB_NODE_IPS:="$(cat /etc/nodepool/sub_nodes)"}
+export SUB_NODE_COUNT="$(($(echo ${SUB_NODE_IPS} | wc -w) + 1))"
 
 # Define OpenStack Test Params
 export OSH_BR_EX_ADDR=${OSH_BR_EX_ADDR:="172.24.4.1/24"}

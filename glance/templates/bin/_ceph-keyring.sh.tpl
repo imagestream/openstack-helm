@@ -19,13 +19,9 @@ limitations under the License.
 set -ex
 export HOME=/tmp
 
-cat <<EOF > /etc/ceph/ceph.client.{{ .Values.conf.glance.glance_store.glance.store.rbd_store_user }}.keyring
-[client.{{ .Values.conf.glance.glance_store.glance.store.rbd_store_user }}]
-{{- if .Values.conf.ceph.keyring }}
-    key = {{ .Values.conf.ceph.keyring }}
-{{- else }}
+cat <<EOF > /etc/ceph/ceph.client.${RBD_STORE_USER}.keyring
+[client.${RBD_STORE_USER}]
     key = $(cat /tmp/client-keyring)
-{{- end }}
 EOF
 
 exit 0

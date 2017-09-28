@@ -69,8 +69,8 @@ against your Kubernetes cluster.
 
 ::
 
-      export KUBE_VERSION=v1.6.8
-      export HELM_VERSION=v2.5.1
+      export KUBE_VERSION=v1.7.5
+      export HELM_VERSION=v2.6.1
       export TMP_DIR=$(mktemp -d)
 
       curl -sSL https://storage.googleapis.com/kubernetes-release/release/${KUBE_VERSION}/bin/linux/amd64/kubectl -o ${TMP_DIR}/kubectl
@@ -95,7 +95,7 @@ Using git, clone the repository that holds all of the OpenStack service charts.
 
 ::
 
-      git clone https://github.com/openstack/openstack-helm.git
+      git clone https://git.openstack.org/openstack/openstack-helm.git
       cd openstack-helm
 
 Setup Helm client
@@ -136,12 +136,23 @@ Build
 -----
 
 Using the Dockerfile defined in tools/kubeadm-aio directory, build the
-'openstackhelm/kubeadm-aio:v1.6.8' image.
+'openstackhelm/kubeadm-aio:v1.7.5' image.
 
 ::
 
-      export KUBEADM_IMAGE=openstackhelm/kubeadm-aio:v1.6.8
+      export KUBEADM_IMAGE=openstackhelm/kubeadm-aio:v1.7.5
       sudo docker build --pull -t ${KUBEADM_IMAGE} tools/kubeadm-aio
+
+CNI Configuration
+-----------------
+
+Before deploying AIO, you may optionally set additional parameters which
+control aspects of the CNI used:
+
+::
+
+      export KUBE_CNI=calico # or "canal" "weave" "flannel"
+      export CNI_POD_CIDR=192.168.0.0/16
 
 Deploy
 ------
@@ -155,11 +166,30 @@ displayed during execution.
 
 ::
 
-      export KUBE_VERSION=v1.6.8
+      export KUBE_VERSION=v1.7.5
       ./tools/kubeadm-aio/kubeadm-aio-launcher.sh
       export KUBECONFIG=${HOME}/.kubeadm-aio/admin.conf
       mkdir -p  ${HOME}/.kube
       cat ${KUBECONFIG} > ${HOME}/.kube/config
+
+Dummy Neutron Networks
+----------------------
+
+If you wish to create dummy network devices for Neutron to manage there is a
+helper script that can set them up for you:
+
+::
+
+      sudo docker exec kubelet /usr/bin/openstack-helm-aio-network-prep
+
+Logs
+----
+
+You can get the logs from your kubeadm-aio container by running:
+
+::
+
+      sudo docker logs -f kubeadm-aio
 
 Helm Chart Installation
 =======================
@@ -173,17 +203,25 @@ configuration steps are necessary.
 Helm Install Examples
 ---------------------
 
+To install a helm chart, use the general command:
+
+.. code-block:: shell
+
+  helm install --name=${NAME} ${PATH_TO_CHART}/${NAME} --namespace=${NAMESPACE}
+
 The below snippet will install the given chart name from the local repository
 using the default values.  These services must be installed first, as the
 OpenStack services depend upon them.
 
-::
+.. code-block:: shell
 
-        helm install --name=mariadb local/mariadb --namespace=openstack
-        helm install --name=memcached local/memcached --namespace=openstack
-        helm install --name=etcd-rabbitmq local/etcd --namespace=openstack
-        helm install --name=rabbitmq local/rabbitmq --namespace=openstack
-        helm install --name=ingress local/ingress --namespace=openstack
+  helm install --name=mariadb ./mariadb --namespace=openstack
+  helm install --name=memcached ./memcached --namespace=openstack
+  helm install --name=etcd-rabbitmq ./etcd --namespace=openstack
+  helm install --name=rabbitmq ./rabbitmq --namespace=openstack
+  helm install --name=ingress ./ingress --namespace=openstack
+  helm install --name=libvirt ./libvirt --namespace=openstack
+  helm install --name=openvswitch ./openvswitch --namespace=openstack
 
 Once the OpenStack infrastructure components are installed and running, the
 OpenStack services can be installed.  In the below examples the default values
@@ -191,18 +229,18 @@ that would be used in a production-like environment have been overridden with
 more sensible values for the All-in-One environment using the ``--values`` and
 ``--set`` options.
 
-::
+.. code-block:: shell
 
-        helm install --name=keystone local/keystone --namespace=openstack
-        helm install --name=glance local/glance --namespace=openstack \
-          --values=./tools/overrides/mvp/glance.yaml
-        helm install --name=nova local/nova --namespace=openstack \
-          --values=./tools/overrides/mvp/nova.yaml \
-          --set=conf.nova.libvirt.nova.conf.virt_type=qemu
-        helm install --name=neutron local/neutron \
-          --namespace=openstack --values=./tools/overrides/mvp/neutron.yaml
-        helm install --name=horizon local/horizon --namespace=openstack \
-          --set=network.enable_node_port=true
+  helm install --name=keystone ./keystone --namespace=openstack
+  helm install --name=glance ./glance --namespace=openstack \
+    --set storage=pvc
+  helm install --name=nova ./nova --namespace=openstack \
+    --values=./tools/overrides/mvp/nova.yaml \
+    --set conf.nova.libvirt.nova.conf.virt_type=qemu
+  helm install --name=neutron ./neutron \
+    --namespace=openstack --values=./tools/overrides/mvp/neutron-ovs.yaml
+  helm install --name=horizon ./horizon --namespace=openstack \
+    --set network.enable_node_port=true
 
 Once the install commands have been issued, executing the following will provide
 insight into the services' deployment status.

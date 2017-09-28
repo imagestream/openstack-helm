@@ -1,6 +1,14 @@
 #!/bin/bash
 set -ex
 
+function is_integer {
+  # This function is about saying if the passed argument is an integer
+  # Supports also negative integers
+  # We use $@ here to consider everything given as parameter and not only the
+  # first one : that's mainly for splited strings like "10 10"
+  [[ $@ =~ ^-?[0-9]+$ ]]
+}
+
 function osd_directory {
   if [[ ! -d /var/lib/ceph/osd ]]; then
     log "ERROR- could not find the osd directory, did you bind mount the OSD data directory?"
@@ -70,6 +78,9 @@ function osd_directory {
       OSD_WEIGHT=$(df -P -k $OSD_PATH | tail -1 | awk '{ d= $2/1073741824 ; r = sprintf("%.2f", d); print r }')
       ceph ${CLI_OPTS} --name=osd.${OSD_ID} --keyring=${OSD_KEYRING} osd crush create-or-move -- ${OSD_ID} ${OSD_WEIGHT} ${CRUSH_LOCATION}
     fi
+    # log osd filesystem type
+    FS_TYPE=`stat --file-system -c "%T" ${OSD_PATH}`
+    log "OSD $OSD_PATH filesystem type: $FS_TYPE"
     echo "${CLUSTER}-${OSD_ID}: /usr/bin/ceph-osd ${CLI_OPTS} -f -i ${OSD_ID} --osd-journal ${OSD_J} -k $OSD_KEYRING" | tee -a /etc/forego/${CLUSTER}/Procfile
   done
   log "SUCCESS"

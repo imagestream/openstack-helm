@@ -15,6 +15,12 @@
 #    under the License.
 set -xe
 
+# Exit if run as root
+if [[ $EUID -eq 0 ]]; then
+   echo "This script cannot be run as root" 1>&2
+   exit 1
+fi
+
 # Setup shared mounts for kubelet
 sudo mkdir -p /var/lib/kubelet
 sudo mount --bind /var/lib/kubelet /var/lib/kubelet
@@ -38,6 +44,7 @@ sudo rm -rfv \
 
 : ${KUBE_CNI:="calico"}
 : ${CNI_POD_CIDR:="192.168.0.0/16"}
+
 # Launch Container
 sudo docker run \
     -dt \
@@ -61,13 +68,13 @@ sudo docker run \
 
 echo "Waiting for kubeconfig"
 set +x
-end=$(($(date +%s) + 240))
+end=$(($(date +%s) + 480))
 READY="False"
 while true; do
   if [ -f ${HOME}/.kubeadm-aio/admin.conf ]; then
     READY="True"
   fi
-  [ $READY == "True" ] && break || true
+  [ "$READY" == "True" ] && break || true
   sleep 1
   now=$(date +%s)
   [ $now -gt $end ] && \
@@ -82,7 +89,7 @@ export KUBECONFIG=${HOME}/.kubeadm-aio/admin.conf
 
 echo "Waiting for node to be ready before continuing"
 set +x
-end=$(($(date +%s) + 240))
+end=$(($(date +%s) + 480))
 READY="False"
 while true; do
   READY=$(kubectl get nodes --no-headers=true | awk "{ print \$2 }" | head -1)
@@ -96,7 +103,7 @@ done
 set -x
 
 # Waiting for kube-system pods to be ready before continuing
-sudo docker exec kubeadm-aio wait-for-kube-pods kube-system
+sudo docker exec kubeadm-aio wait-for-kube-pods kube-system 480
 
 # Initialize Helm
 helm init

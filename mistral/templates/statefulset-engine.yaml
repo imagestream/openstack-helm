@@ -32,6 +32,8 @@ spec:
       labels:
         app: mistral-engine
     spec:
+      affinity:
+{{ tuple $envAll "mistral" "engine" | include "helm-toolkit.snippets.kubernetes_pod_anti_affinity" | indent 8 }}
       nodeSelector:
         {{ .Values.labels.node_selector_key }}: {{ .Values.labels.node_selector_value }}
       initContainers:
@@ -41,6 +43,8 @@ spec:
           image: {{ .Values.images.engine }}
           imagePullPolicy: {{ .Values.images.pull_policy }}
 {{ tuple $envAll $envAll.Values.pod.resources.engine | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
+          securityContext:
+            runAsUser: {{ .Values.pod.user.mistral.uid }}
           command:
             - /tmp/mistral-engine.sh
           volumeMounts:

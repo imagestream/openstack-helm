@@ -68,13 +68,26 @@ data:
             - component: osd-keyring-generator
             - release_group: osh-ceph
   values:
-    manifests_enabled:
-      client_secrets: False
-    bootstrap:
-      enabled: True
+    endpoints:
+      identity:
+        namespace: openstack
+      object_store:
+        namespace: ceph
+      ceph_mon:
+        namespace: ceph
+    ceph:
+      rgw_keystone_auth: true
     network:
       public: 192.168.0.0/16
       cluster: 192.168.0.0/16
+    deployment:
+      storage_secrets: true
+      ceph: true
+      rbd_provisioner: true
+      client_secrets: false
+      rgw_keystone_user_and_endpoints: false
+    bootstrap:
+      enabled: true
   source:
     type: local
     location: /opt/openstack-helm/charts
@@ -105,14 +118,24 @@ data:
             - component: namespace-client-key-generator
             - release_group: osh-ceph
   values:
+    endpoints:
+      identity:
+        namespace: openstack
+      object_store:
+        namespace: ceph
+      ceph_mon:
+        namespace: ceph
     ceph:
-      namespace: ceph
-    manifests_enabled:
-      deployment: False
-      storage_secrets: False
+      rgw_keystone_auth: true
     network:
       public: 192.168.0.0/16
       cluster: 192.168.0.0/16
+    deployment:
+      storage_secrets: false
+      ceph: false
+      rbd_provisioner: false
+      client_secrets: true
+      rgw_keystone_user_and_endpoints: false
   source:
     type: local
     location: /opt/openstack-helm/charts
@@ -234,6 +257,50 @@ data:
 schema: armada/Chart/v1
 metadata:
   schema: metadata/Document/v1
+  name: openvswitch
+data:
+  chart_name: openvswitch
+  release: openvswitch
+  namespace: openstack
+  timeout: 300
+  install:
+    no_hooks: false
+  upgrade:
+    no_hooks: false
+  values: {}
+  source:
+    type: local
+    location: /opt/openstack-helm/charts
+    subpath: openvswitch
+    reference: master
+  dependencies:
+    - helm-toolkit
+---
+schema: armada/Chart/v1
+metadata:
+  schema: metadata/Document/v1
+  name: libvirt
+data:
+  chart_name: libvirt
+  release: libvirt
+  namespace: openstack
+  timeout: 300
+  install:
+    no_hooks: false
+  upgrade:
+    no_hooks: false
+  values: {}
+  source:
+    type: local
+    location: /opt/openstack-helm/charts
+    subpath: libvirt
+    reference: master
+  dependencies:
+    - helm-toolkit
+---
+schema: armada/Chart/v1
+metadata:
+  schema: metadata/Document/v1
   name: keystone
 data:
   chart_name: keystone
@@ -281,6 +348,47 @@ data:
     type: local
     location: /opt/openstack-helm/charts
     subpath: keystone
+    reference: master
+  dependencies:
+    - helm-toolkit
+---
+schema: armada/Chart/v1
+metadata:
+  schema: metadata/Document/v1
+  name: ceph-radosgw-keystone
+data:
+  chart_name: ceph-radosgw-keystone
+  release: ceph-radosgw-keystone
+  namespace: openstack
+  timeout: 3600
+  install:
+    no_hooks: false
+  upgrade:
+    no_hooks: false
+  values:
+    endpoints:
+      identity:
+        namespace: openstack
+      object_store:
+        namespace: ceph
+      endpoints:
+        ceph_mon:
+          namespace: ceph
+    ceph:
+      rgw_keystone_auth: true
+    network:
+      public: 192.168.0.0/16
+      cluster: 192.168.0.0/16
+    deployment:
+      storage_secrets: false
+      ceph: false
+      rbd_provisioner: false
+      client_secrets: false
+      rgw_keystone_user_and_endpoints: true
+  source:
+    type: local
+    location: /opt/openstack-helm/charts
+    subpath: ceph
     reference: master
   dependencies:
     - helm-toolkit
@@ -445,37 +553,20 @@ data:
         tunnel: docker0
     conf:
       neutron:
-        default:
-          oslo:
-            log:
-              debug: false
-          neutron:
-            db:
-              l3_ha: False
-              min_l3_agents_per_router: 1
-              max_l3_agents_per_router: 1
-              l3_ha_network_type: vxlan
-              dhcp_agents_per_network: 1
+        DEFAULT:
+          l3_ha: False
+          min_l3_agents_per_router: 1
+          max_l3_agents_per_router: 1
+          l3_ha_network_type: vxlan
+          dhcp_agents_per_network: 1
       ml2_conf:
         ml2_type_flat:
-          neutron:
-            ml2:
-              flat_networks: public
+          flat_networks: public
       openvswitch_agent:
         agent:
-          neutron:
-            ml2:
-              ovs:
-                agent:
-                  tunnel_types: vxlan
+          tunnel_types: vxlan
         ovs:
-          neutron:
-            ml2:
-              ovs:
-                agent:
-                  of_interface: ovs-ofctl
-                  ovsdb_interface: vsctl
-                  bridge_mappings: public:br-ex
+          bridge_mappings: public:br-ex
   source:
     type: local
     location: /opt/openstack-helm/charts
@@ -697,6 +788,8 @@ data:
     - rabbitmq
     - memcached
     - ingress
+    - libvirt
+    - openvswitch
 ---
 schema: armada/ChartGroup/v1
 metadata:
@@ -707,6 +800,7 @@ data:
   sequenced: False
   chart_group:
     - keystone
+    - ceph-radosgw-keystone
     - horizon
     - glance
     - neutron

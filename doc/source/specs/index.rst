@@ -8,3 +8,5 @@ Contents:
 
    specifications.rst
    template.rst
+   neutron-multiple-sdns.rst
+   support-linux-bridge-on-neutron.rst

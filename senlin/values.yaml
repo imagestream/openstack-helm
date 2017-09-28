@@ -24,12 +24,12 @@ labels:
 release_group: null
 
 images:
-  bootstrap: docker.io/kolla/ubuntu-source-senlin-api:3.0.3
-  db_init: docker.io/kolla/ubuntu-source-senlin-api:3.0.3
+  bootstrap: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
+  db_init: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
   db_sync: docker.io/kolla/ubuntu-source-senlin-api:3.0.3
-  ks_user: docker.io/kolla/ubuntu-source-kolla-toolbox:3.0.3
-  ks_service: docker.io/kolla/ubuntu-source-kolla-toolbox:3.0.3
-  ks_endpoints: docker.io/kolla/ubuntu-source-kolla-toolbox:3.0.3
+  ks_user: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
+  ks_service: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
+  ks_endpoints: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
   api: docker.io/kolla/ubuntu-source-senlin-api:3.0.3
   engine: docker.io/kolla/ubuntu-source-senlin-engine:3.0.3
   dep_check: docker.io/kolla/ubuntu-source-kubernetes-entrypoint:4.0.0
@@ -37,8 +37,32 @@ images:
 
 conf:
   paste:
-    override:
-    append:
+    pipeline:senlin-api:
+      pipeline: request_id faultwrap ssl versionnegotiation webhook authtoken context trust apiv1app
+    app:apiv1app:
+      paste.app_factory: senlin.api.common.wsgi:app_factory
+      senlin.app_factory: senlin.api.openstack.v1.router:API
+    filter:request_id:
+      paste.filter_factory: oslo_middleware.request_id:RequestId.factory
+    filter:faultwrap:
+      paste.filter_factory: senlin.api.common.wsgi:filter_factory
+      senlin.filter_factory: senlin.api.middleware:fault_filter
+    filter:context:
+      paste.filter_factory: senlin.api.common.wsgi:filter_factory
+      senlin.filter_factory: senlin.api.middleware:context_filter
+    filter:ssl:
+      paste.filter_factory: oslo_middleware.ssl:SSLMiddleware.factory
+    filter:versionnegotiation:
+      paste.filter_factory: senlin.api.common.wsgi:filter_factory
+      senlin.filter_factory: senlin.api.middleware:version_filter
+    filter:trust:
+      paste.filter_factory: senlin.api.common.wsgi:filter_factory
+      senlin.filter_factory: senlin.api.middleware:trust_filter
+    filter:webhook:
+      paste.filter_factory: senlin.api.common.wsgi:filter_factory
+      senlin.filter_factory: senlin.api.middleware:webhook_filter
+    filter:authtoken:
+      paste.filter_factory: keystonemiddleware.auth_token:filter_factory
   policy:
     context_is_admin: role:admin
     deny_everybody: "!"
@@ -87,18 +111,16 @@ conf:
     events:get: ''
     webhooks:trigger: ''
   senlin:
-    override:
-    append:
+    DEFAULT:
+      transport_url: null
+    database:
+      max_retries: -1
     keystone_authtoken:
-      keystonemiddleware:
-        auth_token:
-          auth_type: password
-          auth_version: v3
-          memcache_security_strategy: ENCRYPT
+      auth_type: password
+      auth_version: v3
+      memcache_security_strategy: ENCRYPT
     senlin_api:
-      senlin:
-        config:
-          bind_port: 8778
+      bind_port: 8778
 
 network:
   api:
@@ -172,6 +194,7 @@ secrets:
 # values, but should include all endpoints
 # required by this chart
 endpoints:
+  cluster_domain_suffix: cluster.local
   identity:
     name: keystone
     auth:
@@ -193,6 +216,8 @@ endpoints:
     hosts:
       default: keystone-api
       public: keystone
+    host_fqdn_override:
+      default: null
     path:
       default: /v3
     scheme:
@@ -207,6 +232,8 @@ endpoints:
     hosts:
       default: senlin-api
       public: senlin
+    host_fqdn_override:
+      default: null
     path:
       default: null
     scheme:
@@ -225,6 +252,8 @@ endpoints:
         password: password
     hosts:
       default: mariadb
+    host_fqdn_override:
+      default: null
     path: /senlin
     scheme: mysql+pymysql
     port:
@@ -233,6 +262,8 @@ endpoints:
   oslo_cache:
     hosts:
       default: memcached
+    host_fqdn_override:
+      default: null
     port:
       memcache:
         default: 11211
@@ -246,6 +277,8 @@ endpoints:
         password: password
     hosts:
       default: rabbitmq
+    host_fqdn_override:
+      default: null
     path: /
     scheme: rabbit
     port:

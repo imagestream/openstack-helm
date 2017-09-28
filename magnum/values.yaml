@@ -24,12 +24,12 @@ labels:
   node_selector_value: enabled
 
 images:
-  bootstrap: docker.io/kolla/ubuntu-source-magnum-api:3.0.3
-  db_init: docker.io/kolla/ubuntu-source-magnum-api:3.0.3
+  bootstrap: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
+  db_init: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
   db_sync: docker.io/kolla/ubuntu-source-magnum-api:3.0.3
-  ks_user: docker.io/kolla/ubuntu-source-kolla-toolbox:3.0.3
-  ks_service: docker.io/kolla/ubuntu-source-kolla-toolbox:3.0.3
-  ks_endpoints: docker.io/kolla/ubuntu-source-kolla-toolbox:3.0.3
+  ks_user: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
+  ks_service: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
+  ks_endpoints: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
   api: docker.io/kolla/ubuntu-source-magnum-api:3.0.3
   conductor: docker.io/kolla/ubuntu-source-magnum-conductor:3.0.3
   dep_check: docker.io/kolla/ubuntu-source-kubernetes-entrypoint:4.0.0
@@ -37,8 +37,22 @@ images:
 
 conf:
   paste:
-    override:
-    append:
+    pipeline:main:
+      pipeline: cors healthcheck request_id authtoken api_v1
+    app:api_v1:
+      paste.app_factory: magnum.api.app:app_factory
+    filter:authtoken:
+      acl_public_routes: /, /v1
+      paste.filter_factory: magnum.api.middleware.auth_token:AuthTokenMiddleware.factory
+    filter:request_id:
+      paste.filter_factory: oslo_middleware:RequestId.factory
+    filter:cors:
+      paste.filter_factory:  oslo_middleware.cors:filter_factory
+      oslo_config_project: magnum
+    filter:healthcheck:
+      paste.filter_factory: oslo_middleware:Healthcheck.factory
+      backends: disable_by_file
+      disable_by_file_path: /etc/magnum/healthcheck_disable
   policy:
     context_is_admin: role:admin
     admin_or_owner: is_admin:True or project_id:%(project_id)s
@@ -83,18 +97,17 @@ conf:
     certificate:get: rule:admin_or_user or rule:cluster_user
     magnum-service:get_all: rule:admin_api
   magnum:
-    override:
-    append:
+    DEFAULT:
+      transport_url: null
+    database:
+      max_retries: -1
     keystone_authtoken:
-      keystonemiddleware:
-        auth_token:
-          auth_type: password
-          auth_version: v3
-          memcache_security_strategy: ENCRYPT
+      auth_type: password
+      auth_version: v3
+      memcache_security_strategy: ENCRYPT
     api:
-      magnum:
-        port: 9511
-        host: 0.0.0.0
+      port: 9511
+      host: 0.0.0.0
 
 network:
   api:
@@ -168,6 +181,7 @@ secrets:
 # values, but should include all endpoints
 # required by this chart
 endpoints:
+  cluster_domain_suffix: cluster.local
   identity:
     name: keystone
     auth:
@@ -189,6 +203,8 @@ endpoints:
     hosts:
       default: keystone-api
       public: keystone
+    host_fqdn_override:
+      default: null
     path:
       default: /v3
     scheme:
@@ -198,11 +214,13 @@ endpoints:
         default: 35357
       api:
         default: 80
-  container-infra:
+  container_infra:
     name: magnum
     hosts:
       default: magnum-api
       public: magnum
+    host_fqdn_override:
+      default: null
     path:
       default: /v1
     scheme:
@@ -221,6 +239,8 @@ endpoints:
         password: password
     hosts:
       default: mariadb
+    host_fqdn_override:
+      default: null
     path: /magnum
     scheme: mysql+pymysql
     port:
@@ -229,6 +249,8 @@ endpoints:
   oslo_cache:
     hosts:
       default: memcached
+    host_fqdn_override:
+      default: null
     port:
       memcache:
         default: 11211
@@ -242,6 +264,8 @@ endpoints:
         password: password
     hosts:
       default: rabbitmq
+    host_fqdn_override:
+      default: null
     path: /
     scheme: rabbit
     port:
@@ -367,6 +391,5 @@ manifests:
   secret_db: true
   secret_keystone: true
   service_api: true
-  service_cfn: true
   service_ingress_api: true
   statefulset_conductor: true

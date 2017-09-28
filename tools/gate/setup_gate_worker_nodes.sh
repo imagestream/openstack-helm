@@ -14,7 +14,6 @@
 set -ex
 : ${WORK_DIR:="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"}
 source ${WORK_DIR}/tools/gate/vars.sh
-export SUB_NODE_COUNT="$(($(echo ${SUB_NODE_IPS} | wc -w) + 1))"
 
 sudo chown $(whoami) ${SSH_PRIVATE_KEY}
 sudo chmod 600 ${SSH_PRIVATE_KEY}
@@ -43,9 +42,9 @@ bash ${SUB_NODE_PROVISION_SCRIPT}
 rm -rf ${SUB_NODE_PROVISION_SCRIPT}
 
 source ${WORK_DIR}/tools/gate/funcs/kube.sh
-kube_wait_for_nodes ${SUB_NODE_COUNT} 240
-kube_wait_for_pods kube-system 240
-kube_wait_for_pods openstack 240
+kube_wait_for_nodes ${SUB_NODE_COUNT} ${NODE_START_TIMEOUT}
+kube_wait_for_pods kube-system ${POD_START_TIMEOUT_SYSTEM}
+kube_wait_for_pods openstack ${POD_START_TIMEOUT_OPENSTACK}
 kubectl get nodes --show-all
 kubectl get --all-namespaces all --show-all
 sudo docker exec kubeadm-aio openstack-helm-dev-prep

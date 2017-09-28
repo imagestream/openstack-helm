@@ -29,10 +29,10 @@ comments, please create an `issue
        - Version
        - Notes
      * - **Kubernetes**
-       - `v1.6.8 <https://github.com/kubernetes/kubernetes/blob/master/CHANGELOG.md#v165>`_
+       - `v1.7.5 <https://github.com/kubernetes/kubernetes/blob/master/CHANGELOG.md#v175>`_
        - `Custom Controller for RDB tools <https://quay.io/repository/attcomdev/kube-controller-manager?tab=tags>`_
      * - **Helm**
-       - `v2.5.1 <https://github.com/kubernetes/helm/releases/tag/v2.5.1>`_
+       - `v2.6.1 <https://github.com/kubernetes/helm/releases/tag/v2.6.1>`_
        -
      * - **Calico**
        - `v2.1 <http://docs.projectcalico.org/v2.1/releases/>`_
@@ -67,7 +67,7 @@ should just require a single command on the master node:
 
 ::
 
-    admin@kubenode01:~$ kubeadm init --kubernetes-version v1.6.8
+    admin@kubenode01:~$ kubeadm init --kubernetes-version v1.7.5
 
 
 If your environment looks like this after all nodes have joined the
@@ -233,6 +233,7 @@ Nodes are labeled according to their Openstack roles:
 * **Ceph MON Nodes:** ``ceph-mon``
 * **Ceph OSD Nodes:** ``ceph-osd``
 * **Ceph MDS Nodes:** ``ceph-mds``
+* **Ceph RGW Nodes:** ``ceph-rgw``
 * **Control Plane:** ``openstack-control-plane``
 * **Compute Nodes:** ``openvswitch``, ``openstack-compute-node``
 
@@ -242,6 +243,7 @@ Nodes are labeled according to their Openstack roles:
     kubectl label nodes ceph-mon=enabled --all
     kubectl label nodes ceph-osd=enabled --all
     kubectl label nodes ceph-mds=enabled --all
+    kubectl label nodes ceph-rgw=enabled --all
     kubectl label nodes openvswitch=enabled --all
     kubectl label nodes openstack-compute-node=enabled --all
 
@@ -267,8 +269,8 @@ by issuing the following commands:
 
 ::
 
-    export osd_cluster_network=10.26.0.0/26
-    export osd_public_network=10.26.0.0/26
+    export OSD_CLUSTER_NETWORK=10.26.0.0/26
+    export OSD_PUBLIC_NETWORK=10.26.0.0/26
 
 Helm Preparation
 ----------------
@@ -325,19 +327,42 @@ Ceph Installation and Verification
 ----------------------------------
 
 Install the first service, which is Ceph. If all instructions have been
-followed as mentioned above, this installation should go smoothly. Use
-the following command to install Ceph:
+followed as mentioned above, this installation should go smoothly. It is at this
+point you can also decide to enable keystone authentication for the RadosGW if
+you wish to use ceph for tenant facing object storage. If you do not wish to do
+this then you should set the value of ``CEPH_RGW_KEYSTONE_ENABLED=false`` before
+running the following commands in the ``openstack-helm`` project folder:
 
 ::
 
-    helm install --namespace=ceph local/ceph --name=ceph \
-      --set manifests_enabled.client_secrets=false \
-      --set network.public=$osd_public_network \
-      --set network.cluster=$osd_cluster_network \
-      --set bootstrap.enabled=true
+  : ${CEPH_RGW_KEYSTONE_ENABLED:="true"}
+  helm install --namespace=ceph ${WORK_DIR}/ceph --name=ceph \
+    --set endpoints.identity.namespace=openstack \
+    --set endpoints.object_store.namespace=ceph \
+    --set endpoints.ceph_mon.namespace=ceph \
+    --set ceph.rgw_keystone_auth=${CEPH_RGW_KEYSTONE_ENABLED} \
+    --set network.public=${OSD_PUBLIC_NETWORK} \
+    --set network.cluster=${OSD_CLUSTER_NETWORK} \
+    --set deployment.storage_secrets=true \
+    --set deployment.ceph=true \
+    --set deployment.rbd_provisioner=true \
+    --set deployment.client_secrets=false \
+    --set deployment.rgw_keystone_user_and_endpoints=false \
+    --set bootstrap.enabled=true
 
-You may want to validate that Ceph is deployed successfully. For more
-information on this, please see the section entitled `Ceph
+After Ceph has deployed and all the pods are running, you can check the health
+of your cluster by running:
+
+::
+
+  MON_POD=$(kubectl get pods \
+    --namespace=ceph \
+    --selector="application=ceph" \
+    --selector="component=mon" \
+    --no-headers | awk '{ print $1; exit }')
+  kubectl exec -n ceph ${MON_POD} -- ceph -s
+
+For more information on this, please see the section entitled `Ceph
 Troubleshooting <../../operator/troubleshooting/persistent-storage.html>`__.
 
 Activating Control-Plane Namespace for Ceph
@@ -351,12 +376,19 @@ deploy the client keyring and ``ceph.conf`` to the ``openstack`` namespace:
 
 ::
 
-    helm install --namespace=openstack local/ceph --name=ceph-openstack-config \
-      --set manifests_enabled.storage_secrets=false \
-      --set manifests_enabled.deployment=false \
-      --set ceph.namespace=ceph \
-      --set network.public=$osd_public_network \
-      --set network.cluster=$osd_cluster_network
+    : ${CEPH_RGW_KEYSTONE_ENABLED:="true"}
+    helm install --namespace=openstack ${WORK_DIR}/ceph --name=ceph-openstack-config \
+      --set endpoints.identity.namespace=openstack \
+      --set endpoints.object_store.namespace=ceph \
+      --set endpoints.ceph_mon.namespace=ceph \
+      --set ceph.rgw_keystone_auth=${CEPH_RGW_KEYSTONE_ENABLED} \
+      --set network.public=${OSD_PUBLIC_NETWORK} \
+      --set network.cluster=${OSD_CLUSTER_NETWORK} \
+      --set deployment.storage_secrets=false \
+      --set deployment.ceph=false \
+      --set deployment.rbd_provisioner=false \
+      --set deployment.client_secrets=true \
+      --set deployment.rgw_keystone_user_and_endpoints=false
 
 MariaDB Installation and Verification
 -------------------------------------
@@ -365,62 +397,98 @@ To install MariaDB, issue the following command:
 
 ::
 
-    helm install --name=mariadb local/mariadb --namespace=openstack
+    helm install --name=mariadb ./mariadb --namespace=openstack
 
 Installation of Other Services
 ------------------------------
 
 Now you can easily install the other services simply by going in order:
 
-**Install Memcached/Etcd/RabbitMQ/Ingress:**
+**Install Memcached/Etcd/RabbitMQ/Ingress/Libvirt/OpenVSwitch:**
 
 ::
 
-    helm install --name=memcached local/memcached --namespace=openstack
-    helm install --name=etcd-rabbitmq local/etcd --namespace=openstack
-    helm install --name=rabbitmq local/rabbitmq --namespace=openstack
-    helm install --name=ingress local/ingress --namespace=openstack
+    helm install --name=memcached ./memcached --namespace=openstack
+    helm install --name=etcd-rabbitmq ./etcd --namespace=openstack
+    helm install --name=rabbitmq ./rabbitmq --namespace=openstack
+    helm install --name=ingress ./ingress --namespace=openstack
+    helm install --name=libvirt ./libvirt --namespace=openstack
+    helm install --name=openvswitch ./openvswitch --namespace=openstack
 
 **Install Keystone:**
 
 ::
 
-    helm install --namespace=openstack --name=keystone local/keystone \
+    helm install --namespace=openstack --name=keystone ./keystone \
       --set pod.replicas.api=2
+
+**Install RadosGW Object Storage:**
+
+If you elected to install Ceph with Keystone support for the RadosGW you can
+now create endpoints in the Keystone service catalog:
+
+::
+
+    helm install --namespace=openstack ${WORK_DIR}/ceph --name=radosgw-openstack \
+      --set endpoints.identity.namespace=openstack \
+      --set endpoints.object_store.namespace=ceph \
+      --set endpoints.ceph_mon.namespace=ceph \
+      --set ceph.rgw_keystone_auth=${CEPH_RGW_KEYSTONE_ENABLED} \
+      --set network.public=${OSD_PUBLIC_NETWORK} \
+      --set network.cluster=${OSD_CLUSTER_NETWORK} \
+      --set deployment.storage_secrets=false \
+      --set deployment.ceph=false \
+      --set deployment.rbd_provisioner=false \
+      --set deployment.client_secrets=false \
+      --set deployment.rgw_keystone_user_and_endpoints=true
 
 **Install Horizon:**
 
 ::
 
-    helm install --namespace=openstack --name=horizon local/horizon \
+    helm install --namespace=openstack --name=horizon ./horizon \
       --set network.enable_node_port=true
 
 **Install Glance:**
 
+Glance supports a number of backends:
+
+* ``pvc``: A simple file based backend using Kubernetes PVCs
+* ``rbd``: Uses Ceph RBD devices to store images.
+* ``radosgw``: Uses Ceph RadosGW object storage to store images.
+* ``swift``: Uses the ``object-storage`` service from the OpenStack service
+  catalog to store images.
+
+You can deploy Glance with any of these backends if you deployed both the
+RadosGW and created Keystone endpoints by changing the value for
+``GLANCE_BACKEND`` in the following:
+
 ::
 
-    helm install --namespace=openstack --name=glance local/glance \
+    : ${GLANCE_BACKEND:="radosgw"}
+    helm install --namespace=openstack --name=glance ./glance \
       --set pod.replicas.api=2 \
       --set pod.replicas.registry=2
+      --set storage=${GLANCE_BACKEND}
 
 **Install Heat:**
 
 ::
 
-    helm install --namespace=openstack --name=heat local/heat
+    helm install --namespace=openstack --name=heat ./heat
 
 **Install Neutron:**
 
 ::
 
-    helm install --namespace=openstack --name=neutron local/neutron \
+    helm install --namespace=openstack --name=neutron ./neutron \
       --set pod.replicas.server=2
 
 **Install Nova:**
 
 ::
 
-    helm install --namespace=openstack --name=nova local/nova \
+    helm install --namespace=openstack --name=nova ./nova \
       --set pod.replicas.api_metadata=2 \
       --set pod.replicas.osapi=2 \
       --set pod.replicas.conductor=2 \
@@ -432,7 +500,7 @@ Now you can easily install the other services simply by going in order:
 
 ::
 
-    helm install --namespace=openstack --name=cinder local/cinder \
+    helm install --namespace=openstack --name=cinder ./cinder \
       --set pod.replicas.api=2
 
 Final Checks

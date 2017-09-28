@@ -68,6 +68,8 @@ spec:
 {{ tuple $envAll $envAll.Values.pod.resources.backup | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
           securityContext:
             runAsUser: {{ .Values.pod.user.cinder.uid }}
+            capabilities:
+              add: ["SYS_ADMIN"]
           command:
             - /tmp/cinder-backup.sh
           volumeMounts:
@@ -79,7 +81,7 @@ spec:
               mountPath: /etc/cinder/cinder.conf
               subPath: cinder.conf
               readOnly: true
-            {{- if eq .Values.conf.cinder.default.cinder.backup_driver "cinder.backup.drivers.ceph" }}
+            {{- if eq .Values.conf.cinder.DEFAULT.backup_driver "cinder.backup.drivers.ceph" }}
             - name: etcceph
               mountPath: /etc/ceph
             - name: ceph-etc
@@ -92,9 +94,9 @@ spec:
               readOnly: true
             {{- end }}
             - name: cinder-etc
-              # NOTE (Portdirect): We mount here to overide Kollas custom
-              # sudoers file when using Kolla images, this location will
-              # also work fine for other images.
+              # NOTE (Portdirect): We mount here to override Kollas
+              # custom sudoers file when using Kolla images, this
+              # location will also work fine for other images.
               mountPath: /etc/sudoers.d/kolla_cinder_sudoers
               subPath: cinder_sudoers
               readOnly: true
