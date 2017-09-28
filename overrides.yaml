@@ -1,7 +1,7 @@
-manifests_enabled:
+deployment:
   storage_secrets: true
   client_secrets: true
-  deployment: false
+  ceph: true
   external_ceph: true
 
 # Nova metadata fails due to hardcoded IPs -- disable for now
@@ -9,10 +9,18 @@ manifests:
   ingress_metadata: false
   service_ingress_metadata: false
   service_metadata: false
+  daemonset_mon: false
+  daemonset_osd: false
+  deployment_mds: false
+  deployment_moncheck: false
+  deployment_rgw: false
+  service_mon: false
+  service_rgw: false
+  job_bootstrap: false
 
 # External ceph cluster parameters
 secrets:
-  keys:
+  identity:
     admin: "AQBJu8pZMgc3BRAAVbTGIyOiefv20diVq9NMEA=="
 
 #network:

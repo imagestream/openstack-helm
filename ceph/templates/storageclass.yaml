@@ -24,7 +24,7 @@ metadata:
     name: {{ .Values.storageclass.name }}
 provisioner: {{ .Values.storageclass.provisioner }}
 parameters:
-{{- if .Values.manifests_enabled.external_ceph }}
+{{- if .Values.deployment.external_ceph }}
     monitors: {{ tuple "ceph_mon" "internal" "mon" . | include "helm-toolkit.endpoints.host_and_port_no_fqdn_endpoint_uri_lookup" }}
 {{- else }}
     monitors: {{ tuple "ceph_mon" "internal" "mon" . | include "helm-toolkit.endpoints.host_and_port_endpoint_uri_lookup" }}

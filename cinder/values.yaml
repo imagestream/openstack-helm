@@ -358,6 +358,7 @@ conf:
     append:
     monitors: []
     cinder_keyring: null
+    cinder_rbd_user: admin
   cinder:
     DEFAULT:
       use_syslog: false

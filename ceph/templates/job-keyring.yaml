@@ -54,14 +54,14 @@ spec:
             - name: CEPH_KEYRING_TEMPLATE
               value: mon.keyring
             - name: CEPH_KEYRING_KEY
-              value: {{ $envAll.Values.secrets.keys.mon }}
+              value: {{ $envAll.Values.secrets.identity.mon }}
             {{- else }}
             - name: CEPH_KEYRING_NAME
               value: ceph.keyring
             - name: CEPH_KEYRING_TEMPLATE
               value: bootstrap.keyring.{{ $cephBootstrapKey }}
             - name: CEPH_KEYRING_KEY
-              value: {{ $envAll.Values.secrets.keys.bootstrap }}
+              value: {{ $envAll.Values.secrets.identity.bootstrap }}
             {{- end }}
             - name: KUBE_SECRET_NAME
               value: {{  index $envAll.Values.secrets.keyrings $cephBootstrapKey }}
