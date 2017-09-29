@@ -24,7 +24,8 @@ ceph_activate_namespace() {
   while [ $((retries)) -gt 0 ] ; do
       CEPH_KEY=$(kubectl get secret ${PVC_CEPH_STORAGECLASS_ADMIN_SECRET_NAME} \
           --namespace=${PVC_CEPH_STORAGECLASS_DEPLOYED_NAMESPACE} \
-          -o json | jq -r '.data | .[]') && break
+          -o json | jq -r '.data | .[]')
+      [ ! -z ${CEPH_KEY} ] && break
       sleep 6
       let retries=retries-1
   done
