@@ -20,9 +20,14 @@ set -ex
 
 ceph_activate_namespace() {
   kube_namespace=$1
-  CEPH_KEY=$(kubectl get secret ${PVC_CEPH_STORAGECLASS_ADMIN_SECRET_NAME} \
-      --namespace=${PVC_CEPH_STORAGECLASS_DEPLOYED_NAMESPACE} \
-      -o json | jq -r '.data | .[]')
+  let retries=10
+  while [ $((retries)) -gt 0 ] ; do
+      CEPH_KEY=$(kubectl get secret ${PVC_CEPH_STORAGECLASS_ADMIN_SECRET_NAME} \
+          --namespace=${PVC_CEPH_STORAGECLASS_DEPLOYED_NAMESPACE} \
+          -o json | jq -r '.data | .[]') && break
+      sleep 6
+      let retries=retries-1
+  done
   {
   cat <<EOF
 apiVersion: v1
