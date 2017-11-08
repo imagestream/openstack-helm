@@ -12,6 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 set -ex
+
+# Exit if run as root
+if [[ $EUID -eq 0 ]]; then
+   echo "This script cannot be run as root" 1>&2
+   exit 1
+fi
+
 export WORK_DIR=$(pwd)
 source ${WORK_DIR}/tools/gate/vars.sh
 source ${WORK_DIR}/tools/gate/funcs/common.sh
@@ -53,6 +60,7 @@ if [ "x$INTEGRATION_TYPE" == "xlinter" ]; then
   helm_plugin_template_install
   helm_template_run
 else
+  cd ${WORK_DIR}; make pull-all-images
   # Setup the K8s Cluster
   if [ "x$INTEGRATION" == "xaio" ]; then
    bash ${WORK_DIR}/tools/gate/kubeadm_aio.sh
@@ -77,7 +85,7 @@ else
 
   if ! [ "x$INTEGRATION_TYPE" == "x" ]; then
     # Run Basic Full Stack Tests
-    if [ "x$INTEGRATION" == "xaio" ]; then
+    if [ "x$INTEGRATION" == "xaio" ] && [ "x$RALLY_CHART_ENABLED" == "xfalse" ]; then
      bash ${WORK_DIR}/tools/gate/openstack/network_launch.sh
      bash ${WORK_DIR}/tools/gate/openstack/vm_cli_launch.sh
      bash ${WORK_DIR}/tools/gate/openstack/vm_heat_launch.sh

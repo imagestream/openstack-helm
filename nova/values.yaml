@@ -47,22 +47,24 @@ labels:
     node_selector_value: enabled
 
 images:
-  test: docker.io/kolla/ubuntu-source-rally:4.0.0
-  db_init: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
-  db_sync: docker.io/kolla/ubuntu-source-nova-api:3.0.3
-  ks_user: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
-  ks_service: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
-  ks_endpoints: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
-  api: docker.io/kolla/ubuntu-source-nova-api:3.0.3
-  conductor: docker.io/kolla/ubuntu-source-nova-conductor:3.0.3
-  scheduler: docker.io/kolla/ubuntu-source-nova-scheduler:3.0.3
-  novncproxy: docker.io/kolla/ubuntu-source-nova-novncproxy:3.0.3
-  novncproxy_assets: docker.io/kolla/ubuntu-source-nova-novncproxy:3.0.3
-  consoleauth: docker.io/kolla/ubuntu-source-nova-consoleauth:3.0.3
-  compute: docker.io/kolla/ubuntu-source-nova-compute:3.0.3
-  compute_ssh: docker.io/kolla/ubuntu-source-nova-ssh:3.0.3
-  bootstrap: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
-  dep_check: docker.io/kolla/ubuntu-source-kubernetes-entrypoint:4.0.0
+  tags:
+    test: docker.io/kolla/ubuntu-source-rally:4.0.0
+    db_init: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
+    db_sync: docker.io/kolla/ubuntu-source-nova-api:3.0.3
+    db_drop: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
+    ks_user: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
+    ks_service: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
+    ks_endpoints: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
+    api: docker.io/kolla/ubuntu-source-nova-api:3.0.3
+    conductor: docker.io/kolla/ubuntu-source-nova-conductor:3.0.3
+    scheduler: docker.io/kolla/ubuntu-source-nova-scheduler:3.0.3
+    novncproxy: docker.io/kolla/ubuntu-source-nova-novncproxy:3.0.3
+    novncproxy_assets: docker.io/kolla/ubuntu-source-nova-novncproxy:3.0.3
+    consoleauth: docker.io/kolla/ubuntu-source-nova-consoleauth:3.0.3
+    compute: docker.io/kolla/ubuntu-source-nova-compute:3.0.3
+    compute_ssh: docker.io/kolla/ubuntu-source-nova-ssh:3.0.3
+    bootstrap: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
+    dep_check: quay.io/stackanetes/kubernetes-entrypoint:v0.2.1
   pull_policy: "IfNotPresent"
 
 bootstrap:
@@ -107,19 +109,21 @@ network:
     port: 8774
     ingress:
       public: true
+    external_policy_local: false
     node_port:
       enabled: false
       port: 30774
   metadata:
-    ip: 10.97.120.234
+    # IF blank, set clusterIP and metadata_host dynamically
+    ip:
     port: 8775
     ingress:
       public: true
+    external_policy_local: false
     node_port:
       enabled: false
       port: 30775
   novncproxy:
-    name: "nova-novncproxy"
     node_port:
       enabled: false
       port: 36080
@@ -149,6 +153,8 @@ dependencies:
       endpoint: internal
     - service: identity
       endpoint: internal
+    - service: compute_metadata
+      endpoint: public
   db_init:
     services:
     - service: oslo_db
@@ -156,6 +162,10 @@ dependencies:
   db_sync:
     jobs:
     - nova-db-init
+    services:
+    - service: oslo_db
+      endpoint: internal
+  db_drop:
     services:
     - service: oslo_db
       endpoint: internal
@@ -272,8 +282,329 @@ conf:
     append:
   rally_tests:
     run_tempest: false
-    override:
-    append:
+    tests:
+      NovaAgents.list_agents:
+        - runner:
+            concurrency: 1
+            times: 1
+            type: constant
+          sla:
+            failure_rate:
+              max: 0
+      NovaAggregates.create_and_get_aggregate_details:
+        - args:
+            availability_zone: nova
+          context:
+            users:
+              tenants: 1
+              users_per_tenant: 1
+          runner:
+            concurrency: 1
+            times: 1
+            type: constant
+          sla:
+            failure_rate:
+              max: 0
+      NovaAggregates.create_and_update_aggregate:
+        - args:
+            availability_zone: nova
+          context:
+            users:
+              tenants: 1
+              users_per_tenant: 1
+          runner:
+            concurrency: 1
+            times: 1
+            type: constant
+          sla:
+            failure_rate:
+              max: 0
+      NovaAggregates.list_aggregates:
+        - runner:
+            concurrency: 1
+            times: 1
+            type: constant
+          sla:
+            failure_rate:
+              max: 0
+      NovaAvailabilityZones.list_availability_zones:
+        - args:
+            detailed: true
+          runner:
+            concurrency: 1
+            times: 1
+            type: constant
+          sla:
+            failure_rate:
+              max: 0
+      NovaFlavors.create_and_delete_flavor:
+        - args:
+            disk: 1
+            ram: 500
+            vcpus: 1
+          context:
+            users:
+              tenants: 1
+              users_per_tenant: 1
+          runner:
+            concurrency: 1
+            times: 1
+            type: constant
+          sla:
+            failure_rate:
+              max: 0
+      NovaFlavors.create_and_list_flavor_access:
+        - args:
+            disk: 1
+            ram: 500
+            vcpus: 1
+          runner:
+            concurrency: 1
+            times: 1
+            type: constant
+          sla:
+            failure_rate:
+              max: 0
+      NovaFlavors.create_flavor:
+        - args:
+            disk: 1
+            ram: 500
+            vcpus: 1
+          runner:
+            concurrency: 1
+            times: 1
+            type: constant
+          sla:
+            failure_rate:
+              max: 0
+      NovaFlavors.create_flavor_and_add_tenant_access:
+        - args:
+            disk: 1
+            ram: 500
+            vcpus: 1
+          context:
+            users:
+              tenants: 1
+              users_per_tenant: 1
+          runner:
+            concurrency: 1
+            times: 1
+            type: constant
+          sla:
+            failure_rate:
+              max: 0
+      NovaFlavors.create_flavor_and_set_keys:
+        - args:
+            disk: 1
+            extra_specs:
+              'quota:disk_read_bytes_sec': 10240
+            ram: 500
+            vcpus: 1
+          context:
+            users:
+              tenants: 1
+              users_per_tenant: 1
+          runner:
+            concurrency: 1
+            times: 1
+            type: constant
+          sla:
+            failure_rate:
+              max: 0
+      NovaFlavors.list_flavors:
+        - args:
+            detailed: true
+          context:
+            users:
+              tenants: 1
+              users_per_tenant: 1
+          runner:
+            concurrency: 1
+            times: 1
+            type: constant
+          sla:
+            failure_rate:
+              max: 0
+      NovaHosts.list_hosts:
+        - runner:
+            concurrency: 1
+            times: 1
+            type: constant
+          sla:
+            failure_rate:
+              max: 0
+      NovaHypervisors.list_and_get_hypervisors:
+        - args:
+            detailed: true
+          context:
+            users:
+              tenants: 1
+              users_per_tenant: 1
+          runner:
+            concurrency: 1
+            times: 1
+            type: constant
+          sla:
+            failure_rate:
+              max: 0
+      NovaHypervisors.list_and_get_uptime_hypervisors:
+        - args:
+            detailed: true
+          context:
+            users:
+              tenants: 1
+              users_per_tenant: 1
+          runner:
+            concurrency: 1
+            times: 1
+            type: constant
+          sla:
+            failure_rate:
+              max: 0
+      NovaHypervisors.list_and_search_hypervisors:
+        - args:
+            detailed: true
+          context:
+            users:
+              tenants: 1
+              users_per_tenant: 1
+          runner:
+            concurrency: 1
+            times: 1
+            type: constant
+          sla:
+            failure_rate:
+              max: 0
+      NovaHypervisors.list_hypervisors:
+        - args:
+            detailed: true
+          runner:
+            concurrency: 1
+            times: 1
+            type: constant
+          sla:
+            failure_rate:
+              max: 0
+      NovaHypervisors.statistics_hypervisors:
+        - args: {}
+          context:
+            users:
+              tenants: 1
+              users_per_tenant: 1
+          runner:
+            concurrency: 1
+            times: 1
+            type: constant
+          sla:
+            failure_rate:
+              max: 0
+      NovaImages.list_images:
+        - args:
+            detailed: true
+          context:
+            users:
+              tenants: 1
+              users_per_tenant: 1
+          runner:
+            concurrency: 1
+            times: 1
+            type: constant
+          sla:
+            failure_rate:
+              max: 0
+      NovaKeypair.create_and_delete_keypair:
+        - context:
+            users:
+              tenants: 1
+              users_per_tenant: 1
+          runner:
+            concurrency: 1
+            times: 1
+            type: constant
+          sla:
+            failure_rate:
+              max: 0
+      NovaKeypair.create_and_list_keypairs:
+        - context:
+            users:
+              tenants: 1
+              users_per_tenant: 1
+          runner:
+            concurrency: 1
+            times: 1
+            type: constant
+          sla:
+            failure_rate:
+              max: 0
+      NovaSecGroup.create_and_delete_secgroups:
+        - args:
+            rules_per_security_group: 1
+            security_group_count: 1
+          context:
+            users:
+              tenants: 1
+              users_per_tenant: 1
+          runner:
+            concurrency: 1
+            times: 1
+            type: constant
+          sla:
+            failure_rate:
+              max: 0
+      NovaSecGroup.create_and_list_secgroups:
+        - args:
+            rules_per_security_group: 1
+            security_group_count: 1
+          context:
+            users:
+              tenants: 1
+              users_per_tenant: 1
+          runner:
+            concurrency: 1
+            times: 1
+            type: constant
+          sla:
+            failure_rate:
+              max: 0
+      NovaSecGroup.create_and_update_secgroups:
+        - args:
+            security_group_count: 1
+          context:
+            users:
+              tenants: 1
+              users_per_tenant: 1
+          runner:
+            concurrency: 1
+            times: 1
+            type: constant
+          sla:
+            failure_rate:
+              max: 0
+      NovaServerGroups.create_and_list_server_groups:
+        - args:
+            all_projects: false
+            kwargs:
+              policies:
+                - affinity
+          context:
+            users:
+              tenants: 1
+              users_per_tenant: 1
+          runner:
+            concurrency: 1
+            times: 1
+            type: constant
+          sla:
+            failure_rate:
+              max: 0
+      NovaServices.list_services:
+        - runner:
+            concurrency: 1
+            times: 1
+            type: constant
+          sla:
+            failure_rate:
+              max: 0
   paste:
     composite:metadata:
       use: egg:Paste#urlmap
@@ -614,14 +945,14 @@ conf:
       allow_resize_to_same_host: true
       compute_driver: libvirt.LibvirtDriver
       my_ip: 0.0.0.0
+      instance_usage_audit: True
+      instance_usage_audit_period: hour
+      notify_on_state_change: vm_and_task_state
     vnc:
       novncproxy_host: 0.0.0.0
-      novncproxy_port: 6080
       vncserver_listen: 0.0.0.0
       # leave blank, this should be set by each compute nodes's ip
       vncserver_proxyclient_address: null
-      # set management or lb address
-      novncproxy_base_url: http://nova-novncproxy:6080/vnc_auto.html
     conductor:
       workers: 1
     oslo_policy:
@@ -639,12 +970,6 @@ conf:
       service_metadata_proxy: True
       auth_type: password
       auth_version: v3
-      region_name: RegionOne
-      project_name: service
-      project_domain_name: default
-      user_domain_name: default
-      username: neutron
-      password: password
     database:
       max_retries: -1
     api_database:
@@ -669,6 +994,8 @@ conf:
       backend: oslo_cache.memcache_pool
     wsgi:
       api_paste_config: /etc/nova/api-paste.ini
+    oslo_messaging_notifications:
+      driver: messagingv2
 
 # Names of secrets used by bootstrap and environmental checks
 secrets:
@@ -764,6 +1091,13 @@ endpoints:
         project_name: service
         user_domain_name: default
         project_domain_name: default
+      neutron:
+        region_name: RegionOne
+        project_name: service
+        project_domain_name: default
+        user_domain_name: default
+        username: neutron
+        password: password
     hosts:
       default: keystone-api
       public: keystone
@@ -825,6 +1159,19 @@ endpoints:
       metadata:
         default: 8775
         public: 80
+  compute_novnc_proxy:
+    name: nova
+    hosts:
+      default: nova-novncproxy
+    host_fqdn_override:
+      default: null
+    path:
+      default: /vnc_auto.html
+    scheme:
+      default: 'http'
+    port:
+      novnc_proxy:
+        default: 6080
   network:
     name: neutron
     hosts:
@@ -990,6 +1337,13 @@ pod:
         limits:
           memory: "1024Mi"
           cpu: "2000m"
+      db_drop:
+        requests:
+          memory: "128Mi"
+          cpu: "100m"
+        limits:
+          memory: "1024Mi"
+          cpu: "2000m"
       ks_endpoints:
         requests:
           memory: "128Mi"
@@ -1034,6 +1388,7 @@ manifests:
   job_bootstrap: true
   job_db_init: true
   job_db_sync: true
+  job_db_drop: false
   job_ks_endpoints: true
   job_ks_service: true
   job_ks_user: true

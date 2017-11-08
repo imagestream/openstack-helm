@@ -27,18 +27,20 @@ labels:
 release_group: null
 
 images:
-  test: docker.io/kolla/ubuntu-source-rally:4.0.0
-  storage_init: quay.io/attcomdev/ceph-daemon:tag-build-master-jewel-ubuntu-16.04
-  db_init: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
-  db_sync: docker.io/kolla/ubuntu-source-glance-api:3.0.3
-  ks_user: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
-  ks_service: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
-  ks_endpoints: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
-  api: docker.io/kolla/ubuntu-source-glance-api:3.0.3
-  registry: docker.io/kolla/ubuntu-source-glance-registry:3.0.3
-  # Bootstrap image requires curl
-  bootstrap: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
-  dep_check: docker.io/kolla/ubuntu-source-kubernetes-entrypoint:4.0.0
+  tags:
+    test: docker.io/kolla/ubuntu-source-rally:4.0.0
+    storage_init: quay.io/attcomdev/ceph-daemon:tag-build-master-jewel-ubuntu-16.04
+    db_init: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
+    db_sync: docker.io/kolla/ubuntu-source-glance-api:3.0.3
+    db_drop: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
+    ks_user: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
+    ks_service: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
+    ks_endpoints: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
+    api: docker.io/kolla/ubuntu-source-glance-api:3.0.3
+    registry: docker.io/kolla/ubuntu-source-glance-registry:3.0.3
+    # Bootstrap image requires curl
+    bootstrap: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
+    dep_check: quay.io/stackanetes/kubernetes-entrypoint:v0.2.1
   pull_policy: "IfNotPresent"
 
 bootstrap:
@@ -60,12 +62,39 @@ bootstrap:
 conf:
   rally_tests:
     run_tempest: false
-    override:
-    append:
-    images:
-      image_location: http://download.cirros-cloud.net/0.3.5/cirros-0.3.5-x86_64-disk.img
-      disk_format: qcow2
-      container_format: bare
+    tests:
+      GlanceImages.create_and_delete_image:
+        - args:
+            container_format: bare
+            disk_format: qcow2
+            image_location: http://download.cirros-cloud.net/0.3.5/cirros-0.3.5-x86_64-disk.img
+          context:
+            users:
+              tenants: 1
+              users_per_tenant: 1
+          runner:
+            concurrency: 1
+            times: 1
+            type: constant
+          sla:
+            failure_rate:
+              max: 0
+      GlanceImages.create_and_list_image:
+        - args:
+            container_format: bare
+            disk_format: qcow2
+            image_location: http://download.cirros-cloud.net/0.3.5/cirros-0.3.5-x86_64-disk.img
+          context:
+            users:
+              tenants: 1
+              users_per_tenant: 1
+          runner:
+            concurrency: 1
+            times: 1
+            type: constant
+          sla:
+            failure_rate:
+              max: 0
   ceph:
     monitors: []
     admin_keyring: null
@@ -198,7 +227,9 @@ conf:
     paste_deploy:
       flavor: keystone
     database:
-      connection: null
+      max_retries: -1
+    oslo_messaging_notifications:
+      driver: messagingv2
   paste_registry:
     pipeline:glance-registry:
       pipeline: healthcheck osprofiler unauthenticated-context registryapp
@@ -232,7 +263,9 @@ conf:
     paste_deploy:
       flavor: keystone
     database:
-      connection: null
+      max_retries: -1
+    oslo_messaging_notifications:
+      driver: messagingv2
   swift_store:
     override:
     append:
@@ -242,12 +275,14 @@ network:
     ingress:
       public: true
       proxy_body_size: 1024M
+    external_policy_local: false
     node_port:
       enabled: false
       port: 30092
   registry:
     ingress:
       public: true
+    external_policy_local: false
     node_port:
       enabled: false
       port: 30091
@@ -266,6 +301,10 @@ dependencies:
   db_sync:
     jobs:
     - glance-db-init
+    services:
+    - service: oslo_db
+      endpoint: internal
+  db_drop:
     services:
     - service: oslo_db
       endpoint: internal
@@ -545,6 +584,13 @@ pod:
         limits:
           memory: "1024Mi"
           cpu: "2000m"
+      db_drop:
+        requests:
+          memory: "128Mi"
+          cpu: "100m"
+        limits:
+          memory: "1024Mi"
+          cpu: "2000m"
       ks_user:
         requests:
           memory: "128Mi"
@@ -592,6 +638,7 @@ manifests:
   job_clean: true
   job_db_init: true
   job_db_sync: true
+  job_db_drop: false
   job_ks_endpoints: true
   job_ks_service: true
   job_ks_user: true

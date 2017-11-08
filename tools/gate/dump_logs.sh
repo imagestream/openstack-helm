@@ -7,6 +7,10 @@ if ! type "kubectl" &> /dev/null; then
   exit $1
 fi
 
+# make sure there are no helm processes sticking about when we're done
+# which can cause some test runs to hang
+pkill -x helm
+
 echo "Capturing logs from environment."
 mkdir -p ${LOGS_DIR}/k8s/etc
 sudo cp -a /etc/kubernetes ${LOGS_DIR}/k8s/etc
@@ -124,5 +128,10 @@ $OPENSTACK host list > ${LOGS_DIR}/openstack/host.txt
 $OPENSTACK hypervisor list > ${LOGS_DIR}/openstack/hypervisor.txt
 $OPENSTACK hypervisor show $(hostname) > ${LOGS_DIR}/openstack/hypervisor-$(hostname).txt
 $OPENSTACK network agent list > ${LOGS_DIR}/openstack/network_agent.txt
+
+if [ "x$RALLY_CHART_ENABLED" == "xtrue" ]; then
+mkdir -p ${LOGS_DIR}/openstack/rally
+  kubectl -n openstack logs $(kubectl -n openstack get pods -l job-name=rally-run-task --no-headers --output=name --show-all | awk -F '/' '{ print $NF; exit 0 }') > ${LOGS_DIR}/openstack/rally/rally_results.log
+fi
 
 exit $1

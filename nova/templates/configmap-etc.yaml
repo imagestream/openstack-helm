@@ -18,12 +18,10 @@ limitations under the License.
 {{- $envAll := . }}
 
 {{- if empty .Values.conf.nova.keystone_authtoken.auth_uri -}}
-{{- tuple "identity" "internal" "api" . | include "helm-toolkit.endpoints.keystone_endpoint_uri_lookup"| set .Values.conf.nova.keystone_authtoken "auth_uri" | quote | trunc 0 -}}
+{{- tuple "identity" "internal" "api" . | include "helm-toolkit.endpoints.keystone_endpoint_uri_lookup" | set .Values.conf.nova.keystone_authtoken "auth_uri" | quote | trunc 0 -}}
 {{- end -}}
-
-# FIXME(alanmeadows) fix for broken keystonemiddleware oslo config gen in newton - will remove in future
 {{- if empty .Values.conf.nova.keystone_authtoken.auth_url -}}
-{{- tuple "identity" "internal" "api" . | include "helm-toolkit.endpoints.keystone_endpoint_uri_lookup"| set .Values.conf.nova.keystone_authtoken "auth_url" | quote | trunc 0 -}}
+{{- tuple "identity" "internal" "api" . | include "helm-toolkit.endpoints.keystone_endpoint_uri_lookup" | set .Values.conf.nova.keystone_authtoken "auth_url" | quote | trunc 0 -}}
 {{- end -}}
 
 # Set a random string as secret key.
@@ -55,11 +53,11 @@ limitations under the License.
 {{- end -}}
 
 {{- if empty .Values.conf.nova.database.connection -}}
-{{- tuple "oslo_db" "internal" "user" "mysql" . | include "helm-toolkit.endpoints.authenticated_endpoint_uri_lookup"| set .Values.conf.nova.database "connection" | quote | trunc 0 -}}
+{{- tuple "oslo_db" "internal" "user" "mysql" . | include "helm-toolkit.endpoints.authenticated_endpoint_uri_lookup" | set .Values.conf.nova.database "connection" | quote | trunc 0 -}}
 {{- end -}}
 
 {{- if empty .Values.conf.nova.api_database.connection -}}
-{{- tuple "oslo_db_api" "internal" "user" "mysql" . | include "helm-toolkit.endpoints.authenticated_endpoint_uri_lookup"| set .Values.conf.nova.api_database "connection" | quote | trunc 0 -}}
+{{- tuple "oslo_db_api" "internal" "user" "mysql" . | include "helm-toolkit.endpoints.authenticated_endpoint_uri_lookup" | set .Values.conf.nova.api_database "connection" | quote | trunc 0 -}}
 {{- end -}}
 
 {{- if empty .Values.conf.nova.DEFAULT.transport_url -}}
@@ -67,15 +65,34 @@ limitations under the License.
 {{- end -}}
 
 {{- if empty .Values.conf.nova.glance.api_servers -}}
-{{- tuple "image" "internal" "api" . | include "helm-toolkit.endpoints.keystone_endpoint_uri_lookup"| set .Values.conf.nova.glance "api_servers" | quote | trunc 0 -}}
+{{- tuple "image" "internal" "api" . | include "helm-toolkit.endpoints.keystone_endpoint_uri_lookup" | set .Values.conf.nova.glance "api_servers" | quote | trunc 0 -}}
 {{- end -}}
 
 {{- if empty .Values.conf.nova.neutron.url -}}
-{{- tuple "network" "internal" "api" . | include "helm-toolkit.endpoints.keystone_endpoint_uri_lookup"| set .Values.conf.nova.neutron "url" | quote | trunc 0 -}}
+{{- tuple "network" "internal" "api" . | include "helm-toolkit.endpoints.keystone_endpoint_uri_lookup" | set .Values.conf.nova.neutron "url" | quote | trunc 0 -}}
 {{- end -}}
 
 {{- if empty .Values.conf.nova.neutron.auth_url -}}
-{{- tuple "identity" "internal" "api" . | include "helm-toolkit.endpoints.keystone_endpoint_uri_lookup"| set .Values.conf.nova.neutron "auth_url" | quote | trunc 0 -}}
+{{- tuple "identity" "internal" "api" . | include "helm-toolkit.endpoints.keystone_endpoint_uri_lookup" | set .Values.conf.nova.neutron "auth_url" | quote | trunc 0 -}}
+{{- end -}}
+
+{{- if empty .Values.conf.nova.neutron.region_name -}}
+{{- set .Values.conf.nova.neutron "region_name" .Values.endpoints.identity.auth.neutron.region_name | quote | trunc 0 -}}
+{{- end -}}
+{{- if empty .Values.conf.nova.neutron.project_name -}}
+{{- set .Values.conf.nova.neutron "project_name" .Values.endpoints.identity.auth.neutron.project_name | quote | trunc 0 -}}
+{{- end -}}
+{{- if empty .Values.conf.nova.neutron.project_domain_name -}}
+{{- set .Values.conf.nova.neutron "project_domain_name" .Values.endpoints.identity.auth.neutron.project_domain_name | quote | trunc 0 -}}
+{{- end -}}
+{{- if empty .Values.conf.nova.neutron.user_domain_name -}}
+{{- set .Values.conf.nova.neutron "user_domain_name" .Values.endpoints.identity.auth.neutron.user_domain_name | quote | trunc 0 -}}
+{{- end -}}
+{{- if empty .Values.conf.nova.neutron.username -}}
+{{- set .Values.conf.nova.neutron "username" .Values.endpoints.identity.auth.neutron.username | quote | trunc 0 -}}
+{{- end -}}
+{{- if empty .Values.conf.nova.neutron.password -}}
+{{- set .Values.conf.nova.neutron "password" .Values.endpoints.identity.auth.neutron.password | quote | trunc 0 -}}
 {{- end -}}
 
 {{- if empty .Values.conf.nova.cache.memcache_servers -}}
@@ -83,11 +100,21 @@ limitations under the License.
 {{- end -}}
 
 {{- if empty .Values.conf.nova.DEFAULT.metadata_host -}}
+{{- if .Values.network.metadata.ip -}}
 {{- set .Values.conf.nova.DEFAULT "metadata_host" .Values.network.metadata.ip | quote | trunc 0 -}}
+{{- end -}}
 {{- end -}}
 
 {{- if empty .Values.conf.nova.DEFAULT.metadata_port -}}
 {{- tuple "compute_metadata" "public" "metadata" . | include "helm-toolkit.endpoints.endpoint_port_lookup" | set .Values.conf.nova.DEFAULT "metadata_port" | quote | trunc 0 -}}
+{{- end -}}
+
+{{- if empty .Values.conf.nova.vnc.novncproxy_base_url -}}
+{{- tuple "compute_novnc_proxy" "public" "novnc_proxy" . | include "helm-toolkit.endpoints.keystone_endpoint_uri_lookup" | set .Values.conf.nova.vnc "novncproxy_base_url" | quote | trunc 0 -}}
+{{- end -}}
+
+{{- if empty .Values.conf.nova.vnc.novncproxy_port -}}
+{{- tuple "compute_novnc_proxy" "internal" "novnc_proxy" . | include "helm-toolkit.endpoints.endpoint_port_lookup" | set .Values.conf.nova.vnc "novncproxy_port" | quote | trunc 0 -}}
 {{- end -}}
 
 ---
@@ -97,7 +124,7 @@ metadata:
   name: nova-etc
 data:
   rally_tests.yaml: |+
-{{- tuple .Values.conf.rally_tests "etc/_rally_tests.yaml.tpl" . | include "helm-toolkit.utils.configmap_templater" }}
+{{ toYaml .Values.conf.rally_tests.tests | indent 4 }}
   api-paste.ini: |+
 {{ include "helm-toolkit.utils.to_oslo_conf" .Values.conf.paste | indent 4 }}
   policy.yaml: |+

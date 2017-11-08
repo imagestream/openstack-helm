@@ -59,8 +59,9 @@ network:
     management: '15672'
 
 images:
-  rabbitmq: quay.io/attcomdev/fuel-mcp-rabbitmq:ocata-unstable
-  dep_check: docker.io/kolla/ubuntu-source-kubernetes-entrypoint:4.0.0
+  tags:
+    rabbitmq: quay.io/attcomdev/fuel-mcp-rabbitmq:ocata-unstable
+    dep_check: quay.io/stackanetes/kubernetes-entrypoint:v0.2.1
   pull_policy: "IfNotPresent"
 
 enabled_plugins:

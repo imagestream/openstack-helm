@@ -24,17 +24,19 @@ labels:
   node_selector_value: enabled
 
 images:
-  bootstrap: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
-  db_init: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
-  db_sync: docker.io/kolla/ubuntu-source-heat-api:3.0.3
-  ks_user: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
-  ks_service: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
-  ks_endpoints: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
-  api: docker.io/kolla/ubuntu-source-heat-api:3.0.3
-  cfn: docker.io/kolla/ubuntu-source-heat-api:3.0.3
-  cloudwatch: docker.io/kolla/ubuntu-source-heat-api:3.0.3
-  engine: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
-  dep_check: docker.io/kolla/ubuntu-source-kubernetes-entrypoint:4.0.0
+  tags:
+    bootstrap: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
+    db_init: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
+    db_sync: docker.io/kolla/ubuntu-source-heat-api:3.0.3
+    db_drop: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
+    ks_user: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
+    ks_service: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
+    ks_endpoints: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
+    api: docker.io/kolla/ubuntu-source-heat-api:3.0.3
+    cfn: docker.io/kolla/ubuntu-source-heat-api:3.0.3
+    cloudwatch: docker.io/kolla/ubuntu-source-heat-api:3.0.3
+    engine: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
+    dep_check: quay.io/stackanetes/kubernetes-entrypoint:v0.2.1
   pull_policy: "IfNotPresent"
 
 conf:
@@ -212,11 +214,14 @@ conf:
       endpoint_type: internalURL
     clients_keystone:
       endpoint_type: internalURL
+    oslo_messaging_notifications:
+      driver: messagingv2
 
 network:
   api:
     ingress:
       public: true
+    external_policy_local: false
     node_port:
       enabled: false
       port: 30004
@@ -246,6 +251,10 @@ dependencies:
   db_sync:
     jobs:
     - heat-db-init
+    services:
+    - service: oslo_db
+      endpoint: internal
+  db_drop:
     services:
     - service: oslo_db
       endpoint: internal
@@ -518,6 +527,8 @@ pod:
         timeout: 30
       cloudwatch:
         timeout: 30
+      engine:
+        timeout: 30
   resources:
     enabled: false
     api:
@@ -570,6 +581,13 @@ pod:
         limits:
           memory: "1024Mi"
           cpu: "2000m"
+      db_drop:
+        requests:
+          memory: "128Mi"
+          cpu: "100m"
+        limits:
+          memory: "1024Mi"
+          cpu: "2000m"
       ks_endpoints:
         requests:
           memory: "128Mi"
@@ -612,12 +630,14 @@ manifests:
   deployment_api: true
   deployment_cfn: true
   deployment_cloudwatch: true
+  deployment_engine: true
   ingress_api: true
   ingress_cfn: true
   ingress_cloudwatch: true
   job_bootstrap: true
   job_db_init: true
   job_db_sync: true
+  job_db_drop: false
   job_ks_endpoints: true
   job_ks_service: true
   job_ks_user: true
@@ -632,4 +652,4 @@ manifests:
   service_ingress_api: true
   service_ingress_cfn: true
   service_ingress_cloudwatch: true
-  statefulset_engine: true
+  statefulset_engine: false

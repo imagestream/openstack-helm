@@ -20,20 +20,22 @@
 release_group: null
 
 images:
-  bootstrap: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
-  test: docker.io/kolla/ubuntu-source-rally:4.0.0
-  db_init: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
-  db_sync: docker.io/kolla/ubuntu-source-neutron-server:3.0.3
-  ks_user: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
-  ks_service: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
-  ks_endpoints: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
-  server: docker.io/kolla/ubuntu-source-neutron-server:3.0.3
-  dhcp: docker.io/kolla/ubuntu-source-neutron-dhcp-agent:3.0.3
-  metadata: docker.io/kolla/ubuntu-source-neutron-metadata-agent:3.0.3
-  l3: docker.io/kolla/ubuntu-source-neutron-l3-agent:3.0.3
-  neutron_openvswitch_agent: docker.io/kolla/ubuntu-source-neutron-openvswitch-agent:3.0.3
-  neutron_linuxbridge_agent: docker.io/kolla/ubuntu-source-neutron-linuxbridge-agent:3.0.3
-  dep_check: docker.io/kolla/ubuntu-source-kubernetes-entrypoint:4.0.0
+  tags:
+    bootstrap: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
+    test: docker.io/kolla/ubuntu-source-rally:4.0.0
+    db_init: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
+    db_sync: docker.io/kolla/ubuntu-source-neutron-server:3.0.3
+    db_drop: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
+    ks_user: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
+    ks_service: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
+    ks_endpoints: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
+    server: docker.io/kolla/ubuntu-source-neutron-server:3.0.3
+    dhcp: docker.io/kolla/ubuntu-source-neutron-dhcp-agent:3.0.3
+    metadata: docker.io/kolla/ubuntu-source-neutron-metadata-agent:3.0.3
+    l3: docker.io/kolla/ubuntu-source-neutron-l3-agent:3.0.3
+    neutron_openvswitch_agent: docker.io/kolla/ubuntu-source-neutron-openvswitch-agent:3.0.3
+    neutron_linuxbridge_agent: docker.io/kolla/ubuntu-source-neutron-linuxbridge-agent:3.0.3
+    dep_check: quay.io/stackanetes/kubernetes-entrypoint:v0.2.1
   pull_policy: "IfNotPresent"
 
 labels:
@@ -68,22 +70,28 @@ network:
   external_bridge: br-ex
   ip_address: 0.0.0.0
   interface:
-  # External interface will be automatically added to external_bridge. Default is null.
-  # Tunnel interface will be used for VXLAN tunneling. Default is null, with
-  # fallback mechanism to search for interface with default routing.
+  # External interface will be automatically added to external_bridge.
+  # Tunnel interface will be used for VXLAN tunneling. If null
+  # (default) there is a fallback mechanism to search for interface
+  # with default routing.
     external: null
     tunnel: null
-  # To automatically add a physical interface to a specific bridge using,
-  # for example eth3 to bridge br-physnet1 define the following key/value
-  # in auto_bridge_add:
-  #       br-physnet1: eth3
-  auto_bridge_add:
-  #    br0: if0
-  #    br1: iface_two
+  # auto_bridge_add is a table of "bridge: interface" pairs, by
+  # default empty
+  auto_bridge_add: {}
+  # To automatically add a physical interfaces to a specific bridges,
+  # for example eth3 to bridge br-physnet1, if0 to br0 and iface_two
+  # to br1 do something like:
+  #
+  # auto_bridge_add:
+  #   br-physnet1: eth3
+  #   br0: if0
+  #   br1: iface_two
   server:
     port: 9696
     ingress:
       public: true
+    external_policy_local: false
     node_port:
       enabled: false
       port: 30096
@@ -103,6 +111,10 @@ dependencies:
   db_sync:
     jobs:
     - neutron-db-init
+    services:
+    - service: oslo_db
+      endpoint: internal
+  db_drop:
     services:
     - service: oslo_db
       endpoint: internal
@@ -153,6 +165,8 @@ dependencies:
       endpoint: internal
     - service: compute
       endpoint: internal
+    - service: compute_metadata
+      endpoint: public
     daemonset:
     # this should be set to corresponding neutron L2 agent
     - neutron-ovs-agent
@@ -335,6 +349,13 @@ pod:
         limits:
           memory: "1024Mi"
           cpu: "2000m"
+      db_drop:
+        requests:
+          memory: "128Mi"
+          cpu: "100m"
+        limits:
+          memory: "1024Mi"
+          cpu: "2000m"
       ks_endpoints:
         requests:
           memory: "128Mi"
@@ -367,8 +388,301 @@ pod:
 conf:
   rally_tests:
     run_tempest: false
-    override:
-    append:
+    tests:
+      NeutronNetworks.create_and_delete_networks:
+        - args:
+            network_create_args: {}
+          context:
+            quotas:
+              neutron:
+                network: -1
+            users:
+              tenants: 1
+              users_per_tenant: 1
+          runner:
+            concurrency: 1
+            times: 1
+            type: constant
+          sla:
+            failure_rate:
+              max: 0
+      NeutronNetworks.create_and_delete_ports:
+        - args:
+            network_create_args: {}
+            port_create_args: {}
+            ports_per_network: 10
+          context:
+            network: {}
+            quotas:
+              neutron:
+                network: -1
+                port: -1
+            users:
+              tenants: 1
+              users_per_tenant: 1
+          runner:
+            concurrency: 1
+            times: 1
+            type: constant
+          sla:
+            failure_rate:
+              max: 0
+      NeutronNetworks.create_and_delete_routers:
+        - args:
+            network_create_args: {}
+            router_create_args: {}
+            subnet_cidr_start: 1.1.0.0/30
+            subnet_create_args: {}
+            subnets_per_network: 2
+          context:
+            network: {}
+            quotas:
+              neutron:
+                network: -1
+                router: -1
+                subnet: -1
+            users:
+              tenants: 1
+              users_per_tenant: 1
+          runner:
+            concurrency: 1
+            times: 1
+            type: constant
+          sla:
+            failure_rate:
+              max: 0
+      NeutronNetworks.create_and_delete_subnets:
+        - args:
+            network_create_args: {}
+            subnet_cidr_start: 1.1.0.0/30
+            subnet_create_args: {}
+            subnets_per_network: 2
+          context:
+            network: {}
+            quotas:
+              neutron:
+                network: -1
+                subnet: -1
+            users:
+              tenants: 1
+              users_per_tenant: 1
+          runner:
+            concurrency: 1
+            times: 1
+            type: constant
+          sla:
+            failure_rate:
+              max: 0
+      NeutronNetworks.create_and_list_routers:
+        - args:
+            network_create_args: {}
+            router_create_args: {}
+            subnet_cidr_start: 1.1.0.0/30
+            subnet_create_args: {}
+            subnets_per_network: 2
+          context:
+            network: {}
+            quotas:
+              neutron:
+                network: -1
+                router: -1
+                subnet: -1
+            users:
+              tenants: 3
+              users_per_tenant: 3
+          runner:
+            concurrency: 1
+            times: 1
+            type: constant
+          sla:
+            failure_rate:
+              max: 0
+      NeutronNetworks.create_and_list_subnets:
+        - args:
+            network_create_args: {}
+            subnet_cidr_start: 1.1.0.0/30
+            subnet_create_args: {}
+            subnets_per_network: 2
+          context:
+            network: {}
+            quotas:
+              neutron:
+                network: -1
+                subnet: -1
+            users:
+              tenants: 1
+              users_per_tenant: 1
+          runner:
+            concurrency: 1
+            times: 1
+            type: constant
+          sla:
+            failure_rate:
+              max: 0
+      NeutronNetworks.create_and_show_network:
+        - args:
+            network_create_args: {}
+          context:
+            quotas:
+              neutron:
+                network: -1
+            users:
+              tenants: 1
+              users_per_tenant: 1
+          runner:
+            concurrency: 1
+            times: 1
+            type: constant
+          sla:
+            failure_rate:
+              max: 0
+      NeutronNetworks.create_and_update_networks:
+        - args:
+            network_create_args: {}
+            network_update_args:
+              admin_state_up: false
+              name: _updated
+          context:
+            quotas:
+              neutron:
+                network: -1
+            users:
+              tenants: 1
+              users_per_tenant: 1
+          runner:
+            concurrency: 1
+            times: 1
+            type: constant
+          sla:
+            failure_rate:
+              max: 0
+      NeutronNetworks.create_and_update_ports:
+        - args:
+            network_create_args: {}
+            port_create_args: {}
+            port_update_args:
+              admin_state_up: false
+              device_id: dummy_id
+              device_owner: dummy_owner
+              name: _port_updated
+            ports_per_network: 5
+          context:
+            network: {}
+            quotas:
+              neutron:
+                network: -1
+                port: -1
+            users:
+              tenants: 1
+              users_per_tenant: 1
+          runner:
+            concurrency: 1
+            times: 1
+            type: constant
+          sla:
+            failure_rate:
+              max: 0
+      NeutronNetworks.create_and_update_routers:
+        - args:
+            network_create_args: {}
+            router_create_args: {}
+            router_update_args:
+              admin_state_up: false
+              name: _router_updated
+            subnet_cidr_start: 1.1.0.0/30
+            subnet_create_args: {}
+            subnets_per_network: 2
+          context:
+            network: {}
+            quotas:
+              neutron:
+                network: -1
+                router: -1
+                subnet: -1
+            users:
+              tenants: 1
+              users_per_tenant: 1
+          runner:
+            concurrency: 1
+            times: 1
+            type: constant
+          sla:
+            failure_rate:
+              max: 0
+      NeutronNetworks.create_and_update_subnets:
+        - args:
+            network_create_args: {}
+            subnet_cidr_start: 1.4.0.0/16
+            subnet_create_args: {}
+            subnet_update_args:
+              enable_dhcp: false
+              name: _subnet_updated
+            subnets_per_network: 2
+          context:
+            network: {}
+            quotas:
+              neutron:
+                network: -1
+                subnet: -1
+            users:
+              tenants: 1
+              users_per_tenant: 1
+          runner:
+            concurrency: 1
+            times: 1
+            type: constant
+          sla:
+            failure_rate:
+              max: 0
+      NeutronNetworks.list_agents:
+        - args:
+            agent_args: {}
+          context:
+            users:
+              tenants: 1
+              users_per_tenant: 1
+          runner:
+            concurrency: 1
+            times: 1
+            type: constant
+          sla:
+            failure_rate:
+              max: 0
+      NeutronSecurityGroup.create_and_list_security_groups:
+        - args:
+            security_group_create_args: {}
+          context:
+            quotas:
+              neutron:
+                security_group: -1
+            users:
+              tenants: 1
+              users_per_tenant: 1
+          runner:
+            concurrency: 1
+            times: 1
+            type: constant
+          sla:
+            failure_rate:
+              max: 0
+      NeutronSecurityGroup.create_and_update_security_groups:
+        - args:
+            security_group_create_args: {}
+            security_group_update_args: {}
+          context:
+            quotas:
+              neutron:
+                security_group: -1
+            users:
+              tenants: 1
+              users_per_tenant: 1
+          runner:
+            concurrency: 1
+            times: 1
+            type: constant
+          sla:
+            failure_rate:
+              max: 0
   paste:
     composite:neutron:
       use: egg:Paste#urlmap
@@ -658,17 +972,10 @@ conf:
     agent:
       root_helper: sudo /var/lib/kolla/venv/bin/neutron-rootwrap /etc/neutron/rootwrap.conf
     oslo_messaging_notifications:
-      driver:
-      - noop
+      driver: messagingv2
     nova:
       auth_type: password
       auth_version: v3
-      region_name: RegionOne
-      project_domain_name: default
-      project_name: service
-      user_domain_name: default
-      username: nova
-      password: password
     keystone_authtoken:
       memcache_security_strategy: ENCRYPT
       auth_type: password
@@ -737,7 +1044,8 @@ conf:
   metering_agent: null
   metadata_agent:
     DEFAULT:
-      nova_metadata_ip: 10.97.120.234
+      # IF blank, set dynamically from metadata hosts
+      nova_metadata_ip:
       nova_metadata_port: 80
       nova_metadata_protocol: http
       metadata_proxy_shared_secret: "password"
@@ -816,10 +1124,23 @@ endpoints:
       api:
         default: 8774
         public: 80
-      metadata:
-        default: 8775
       novncproxy:
         default: 6080
+  compute_metadata:
+    name: nova
+    hosts:
+      default: nova-metadata
+      public: metadata
+    host_fqdn_override:
+      default: null
+    path:
+      default: /
+    scheme:
+      default: 'http'
+    port:
+      metadata:
+        default: 8775
+        public: 80
   identity:
     name: keystone
     auth:
@@ -838,6 +1159,13 @@ endpoints:
         project_name: service
         user_domain_name: default
         project_domain_name: default
+      nova:
+        region_name: RegionOne
+        project_domain_name: default
+        project_name: service
+        user_domain_name: default
+        username: nova
+        password: password
     hosts:
       default: keystone-api
       public: keystone
@@ -881,6 +1209,7 @@ manifests:
   job_bootstrap: true
   job_db_init: true
   job_db_sync: true
+  job_db_drop: false
   job_ks_endpoints: true
   job_ks_service: true
   job_ks_user: true

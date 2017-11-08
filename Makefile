@@ -41,5 +41,10 @@ clean:
 	rm -f */templates/_partials.tpl
 	rm -f */templates/_globals.tpl
 	rm -f *tgz */charts/*tgz
+	rm -f */requirements.lock
+	-rmdir -p */charts
+
+pull-all-images:
+	@./tools/pull-images.sh
 
 .PHONY: $(EXCLUDES) $(CHARTS)
