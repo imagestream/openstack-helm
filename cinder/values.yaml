@@ -29,17 +29,19 @@ images:
   tags:
     test: docker.io/kolla/ubuntu-source-rally:4.0.0
     db_init: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
-    db_sync: docker.io/kolla/ubuntu-source-cinder-api:3.0.3
+    cinder_db_sync: docker.io/kolla/ubuntu-source-cinder-api:3.0.3
     db_drop: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
     ks_user: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
     ks_service: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
     ks_endpoints: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
-    api: docker.io/kolla/ubuntu-source-cinder-api:3.0.3
+    cinder_api: docker.io/kolla/ubuntu-source-cinder-api:3.0.3
     bootstrap: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
-    scheduler: docker.io/kolla/ubuntu-source-cinder-scheduler:3.0.3
-    volume: docker.io/kolla/ubuntu-source-cinder-volume:3.0.3
-    volume_usage_audit: docker.io/kolla/ubuntu-source-cinder-volume:3.0.3
-    backup: docker.io/kolla/ubuntu-source-cinder-backup:3.0.3
+    cinder_scheduler: docker.io/kolla/ubuntu-source-cinder-scheduler:3.0.3
+    cinder_volume: docker.io/kolla/ubuntu-source-cinder-volume:3.0.3
+    cinder_volume_usage_audit: docker.io/kolla/ubuntu-source-cinder-volume:3.0.3
+    cinder_storage_init: docker.io/ceph/daemon:tag-build-master-luminous-ubuntu-16.04
+    cinder_backup: docker.io/kolla/ubuntu-source-cinder-backup:3.0.3
+    cinder_backup_storage_init: docker.io/ceph/daemon:tag-build-master-luminous-ubuntu-16.04
     dep_check: quay.io/stackanetes/kubernetes-entrypoint:v0.2.1
   pull_policy: "IfNotPresent"
 
@@ -154,6 +156,27 @@ pod:
         limits:
           memory: "1024Mi"
           cpu: "2000m"
+      clean:
+        requests:
+          memory: "128Mi"
+          cpu: "100m"
+        limits:
+          memory: "1024Mi"
+          cpu: "2000m"
+      backup_storage_init:
+        requests:
+          memory: "128Mi"
+          cpu: "100m"
+        limits:
+          memory: "1024Mi"
+          cpu: "2000m"
+      storage_init:
+        requests:
+          memory: "128Mi"
+          cpu: "100m"
+        limits:
+          memory: "1024Mi"
+          cpu: "2000m"
       ks_endpoints:
         requests:
           memory: "128Mi"
@@ -195,6 +218,9 @@ network:
   api:
     ingress:
       public: true
+      annotations:
+        kubernetes.io/ingress.class: "nginx"
+        ingress.kubernetes.io/rewrite-target: /
     external_policy_local: false
     node_port:
       enabled: false
@@ -396,10 +422,15 @@ conf:
       host: cinder-volume-worker
       osapi_volume_listen_port: 8776
       enabled_backends: "rbd1"
+      # NOTE(portdirect): "cinder.backup.drivers.swift"  and
+      # "cinder.backup.drivers.posix" also supported
       backup_driver: "cinder.backup.drivers.ceph"
+      # Backup: Ceph RBD options
       backup_ceph_conf: "/etc/ceph/ceph.conf"
-      backup_ceph_user: admin
-      backup_ceph_pool: backups
+      backup_ceph_user: cinderbackup
+      backup_ceph_pool: cinder.backups
+      # Backup: Posix options
+      backup_posix_path: /var/lib/cinder/backup
     database:
       max_retries: -1
     keystone_authtoken:
@@ -445,6 +476,12 @@ conf:
             failure_rate:
               max: 0
 
+backup:
+  posix:
+    volume:
+      class_name: general
+      size: 10Gi
+
 dependencies:
   db_init:
     services:
@@ -474,11 +511,18 @@ dependencies:
     services:
     - service: identity
       endpoint: internal
+  backup_storage_init:
+    jobs:
+  storage_init:
+    jobs:
+  clean:
+    jobs:
   api:
     jobs:
     - cinder-db-sync
     - cinder-ks-user
     - cinder-ks-endpoints
+    - cinder-storage-init
     services:
     - service: oslo_db
       endpoint: internal
@@ -495,6 +539,7 @@ dependencies:
     - cinder-db-sync
     - cinder-ks-user
     - cinder-ks-endpoints
+    - cinder-storage-init
     services:
     - service: identity
       endpoint: internal
@@ -505,6 +550,7 @@ dependencies:
     - cinder-db-sync
     - cinder-ks-user
     - cinder-ks-endpoints
+    - cinder-storage-init
     services:
     - service: identity
       endpoint: internal
@@ -515,6 +561,7 @@ dependencies:
     - cinder-db-sync
     - cinder-ks-user
     - cinder-ks-endpoints
+    - cinder-storage-init
     services:
     - service: identity
       endpoint: internal
@@ -525,6 +572,8 @@ dependencies:
     - cinder-db-sync
     - cinder-ks-user
     - cinder-ks-endpoints
+    - cinder-storage-init
+    - cinder-backup-storage-init
     services:
     - service: identity
       endpoint: internal
@@ -545,6 +594,9 @@ secrets:
   oslo_db:
     admin: cinder-db-admin
     user: cinder-db-user
+  rbd:
+    backup: cinder-backup-rbd-keyring
+    volume: cinder-volume-rbd-keyring
 
 # We use a different layout of the endpoints here to account for versioning
 # this swaps the service name and type, and should be rolled out to other
@@ -677,9 +729,6 @@ endpoints:
         default: 3306
   oslo_messaging:
     auth:
-      admin:
-        username: admin
-        password: password
       user:
         username: rabbitmq
         password: password
@@ -710,15 +759,19 @@ manifests:
   deployment_scheduler: true
   deployment_volume: true
   ingress_api: true
+  job_backup_storage_init: true
   job_bootstrap: true
+  job_clean: true
   job_db_init: true
   job_db_sync: true
   job_db_drop: false
   job_ks_endpoints: true
   job_ks_service: true
   job_ks_user: true
+  job_storage_init: true
   pdb_api: true
   pod_rally_test: true
+  pvc_backup: true
   secret_db: true
   secret_keystone: true
   service_api: true

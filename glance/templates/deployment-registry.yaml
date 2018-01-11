@@ -17,8 +17,12 @@ limitations under the License.
 {{- if .Values.manifests.deployment_registry }}
 {{- $envAll := . }}
 {{- $dependencies := .Values.dependencies.registry }}
+
 {{- $mounts_glance_registry := .Values.pod.mounts.glance_registry.glance_registry }}
 {{- $mounts_glance_registry_init := .Values.pod.mounts.glance_registry.init_container }}
+
+{{- $serviceAccountName := "glance-registry" }}
+{{ tuple $envAll $dependencies $serviceAccountName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
 ---
 apiVersion: apps/v1beta1
 kind: Deployment
@@ -35,6 +39,7 @@ spec:
         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
     spec:
+      serviceAccountName: {{ $serviceAccountName }}
       affinity:
 {{ tuple $envAll "glance" "registry" | include "helm-toolkit.snippets.kubernetes_pod_anti_affinity" | indent 8 }}
       nodeSelector:
@@ -44,7 +49,7 @@ spec:
 {{ tuple $envAll $dependencies $mounts_glance_registry_init | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
       containers:
         - name: glance-registry
-          image: {{ .Values.images.tags.registry }}
+          image: {{ .Values.images.tags.glance_registry }}
           imagePullPolicy: {{ .Values.images.pull_policy }}
 {{ tuple $envAll $envAll.Values.pod.resources.registry | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
           securityContext:

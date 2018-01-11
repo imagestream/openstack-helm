@@ -22,17 +22,17 @@ release_group: null
 images:
   tags:
     bootstrap: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
-    test: docker.io/kolla/ubuntu-source-rally:4.0.0
+    neutron_test: docker.io/kolla/ubuntu-source-rally:4.0.0
     db_init: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
-    db_sync: docker.io/kolla/ubuntu-source-neutron-server:3.0.3
+    neutron_db_sync: docker.io/kolla/ubuntu-source-neutron-server:3.0.3
     db_drop: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
     ks_user: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
     ks_service: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
     ks_endpoints: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
-    server: docker.io/kolla/ubuntu-source-neutron-server:3.0.3
-    dhcp: docker.io/kolla/ubuntu-source-neutron-dhcp-agent:3.0.3
-    metadata: docker.io/kolla/ubuntu-source-neutron-metadata-agent:3.0.3
-    l3: docker.io/kolla/ubuntu-source-neutron-l3-agent:3.0.3
+    neutron_server: docker.io/kolla/ubuntu-source-neutron-server:3.0.3
+    neutron_dhcp: docker.io/kolla/ubuntu-source-neutron-dhcp-agent:3.0.3
+    neutron_metadata: docker.io/kolla/ubuntu-source-neutron-metadata-agent:3.0.3
+    neutron_l3: docker.io/kolla/ubuntu-source-neutron-l3-agent:3.0.3
     neutron_openvswitch_agent: docker.io/kolla/ubuntu-source-neutron-openvswitch-agent:3.0.3
     neutron_linuxbridge_agent: docker.io/kolla/ubuntu-source-neutron-linuxbridge-agent:3.0.3
     dep_check: quay.io/stackanetes/kubernetes-entrypoint:v0.2.1
@@ -91,6 +91,9 @@ network:
     port: 9696
     ingress:
       public: true
+      annotations:
+        kubernetes.io/ingress.class: "nginx"
+        ingress.kubernetes.io/rewrite-target: /
     external_policy_local: false
     node_port:
       enabled: false
@@ -1011,7 +1014,7 @@ conf:
       securitygroup:
         firewall_driver: openvswitch
     linuxbridge_agent:
-      agent:
+      linux_bridge:
         # To define Flat and VLAN connections, in LB we can assign
         # specific interface to the flat/vlan network name using:
         # physical_interface_mappings: "external:eth3"
@@ -1019,7 +1022,7 @@ conf:
         bridge_mappings: "external:br-ex"
         # The two above options are exclusive, do not use both of them at once
       securitygroup:
-        firewall_driver: neutron.agent.linux.iptables_firewall.IptablesFirewallDriver
+        firewall_driver: iptables
       vxlan:
         l2_population: True
         arp_responder: True
@@ -1086,9 +1089,6 @@ endpoints:
          default: 3306
   oslo_messaging:
      auth:
-       admin:
-         username: admin
-         password: password
        user:
          username: rabbitmq
          password: password

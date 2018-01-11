@@ -18,6 +18,35 @@ limitations under the License.
 {{- $envAll := . }}
 {{- if .Values.deployment.ceph }}
 {{- $dependencies := .Values.dependencies.mon }}
+
+{{- $serviceAccountName := "ceph-mon"}}
+{{ tuple $envAll $dependencies $serviceAccountName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
+---
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: Role
+metadata:
+  name: {{ $serviceAccountName }}
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - pods
+    verbs:
+      - get
+      - list
+---
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: RoleBinding
+metadata:
+  name: {{ $serviceAccountName }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $serviceAccountName }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $serviceAccountName }}
+    namespace: {{ $envAll.Release.Namespace }}
 ---
 kind: DaemonSet
 apiVersion: extensions/v1beta1
@@ -29,15 +58,15 @@ spec:
       labels:
 {{ tuple $envAll "ceph" "mon" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
     spec:
+      serviceAccountName: {{ $serviceAccountName }}
       nodeSelector:
         {{ .Values.labels.mon.node_selector_key }}: {{ .Values.labels.mon.node_selector_value }}
       hostNetwork: true
       dnsPolicy: {{ .Values.pod.dns_policy }}
-      serviceAccount: default
       initContainers:
-{{ tuple $envAll $dependencies "" | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
+{{ tuple $envAll $dependencies list | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
         - name: ceph-init-dirs
-          image: {{ .Values.images.tags.daemon }}
+          image: {{ .Values.images.tags.ceph_daemon }}
           imagePullPolicy: {{ .Values.images.pull_policy }}
           command:
             - /tmp/init_dirs.sh
@@ -61,9 +90,9 @@ spec:
               readOnly: false
       containers:
         - name: ceph-mon
-          image: {{ .Values.images.tags.daemon }}
+          image: {{ .Values.images.tags.ceph_daemon }}
           imagePullPolicy: {{ .Values.images.pull_policy }}
-{{ tuple $envAll $envAll.Values.pod.resources.osd | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
+{{ tuple $envAll $envAll.Values.pod.resources.mon | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
           env:
             - name: K8S_HOST_NETWORK
               value: "1"
@@ -94,14 +123,17 @@ spec:
           ports:
             - containerPort: 6789
           livenessProbe:
-              tcpSocket:
-                port: 6789
-              initialDelaySeconds: 60
-              timeoutSeconds: 5
+           exec:
+            command:
+             - /ceph-mon-liveness.sh
+           initialDelaySeconds: 60
+           periodSeconds: 60
           readinessProbe:
-              tcpSocket:
-                port: 6789
-              timeoutSeconds: 5
+           exec:
+            command:
+             - /ceph-mon-readiness.sh
+           initialDelaySeconds: 60
+           periodSeconds: 60
           volumeMounts:
             - name: ceph-bin
               mountPath: /start_mon.sh
@@ -114,6 +146,14 @@ spec:
             - name: ceph-bin
               mountPath: /common_functions.sh
               subPath: common_functions.sh
+              readOnly: true
+            - name: ceph-bin
+              mountPath: /ceph-mon-liveness.sh
+              subPath: ceph-mon-liveness.sh
+              readOnly: true
+            - name: ceph-bin
+              mountPath: /ceph-mon-readiness.sh
+              subPath: ceph-mon-readiness.sh
               readOnly: true
             - name: ceph-etc
               mountPath: /etc/ceph/ceph.conf
@@ -162,7 +202,8 @@ spec:
             name: ceph-etc
             defaultMode: 0444
         - name: pod-var-lib-ceph
-          emptyDir: {}
+          hostPath:
+            path: {{ .Values.ceph.storage.mon_directory }}
         - name: pod-run
           emptyDir:
             medium: "Memory"

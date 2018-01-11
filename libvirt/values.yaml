@@ -28,6 +28,7 @@ labels:
 images:
   tags:
     libvirt: docker.io/kolla/ubuntu-source-nova-libvirt:3.0.3
+    dep_check: quay.io/stackanetes/kubernetes-entrypoint:v0.2.1
   pull_policy: "IfNotPresent"
 
 ceph:
@@ -39,9 +40,13 @@ ceph:
 
 conf:
   libvirt:
+    listen_tcp: "1"
+    auth_tcp: "none"
+    ca_file: ""
     listen_addr: 0.0.0.0
-    log_level: 3
+    log_level: "3"
   qemu:
+    stdio_handler: "file"
     user: "nova"
     group: "kvm"
 
@@ -73,6 +78,9 @@ pod:
       limits:
         memory: "1024Mi"
         cpu: "2000m"
+
+dependencies:
+  libvirt: null
 
 manifests:
   configmap_bin: true

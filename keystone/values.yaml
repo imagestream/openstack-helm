@@ -28,13 +28,13 @@ images:
     bootstrap: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
     test: docker.io/kolla/ubuntu-source-rally:4.0.0
     db_init: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
-    db_sync: docker.io/kolla/ubuntu-source-keystone:3.0.3
+    keystone_db_sync: docker.io/kolla/ubuntu-source-keystone:3.0.3
     db_drop: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
-    fernet_setup: docker.io/kolla/ubuntu-source-keystone:3.0.3
-    fernet_rotate: docker.io/kolla/ubuntu-source-keystone:3.0.3
-    credential_setup: docker.io/kolla/ubuntu-source-keystone:3.0.3
-    credential_rotate: docker.io/kolla/ubuntu-source-keystone:3.0.3
-    api: docker.io/kolla/ubuntu-source-keystone:3.0.3
+    keystone_fernet_setup: docker.io/kolla/ubuntu-source-keystone:3.0.3
+    keystone_fernet_rotate: docker.io/kolla/ubuntu-source-keystone:3.0.3
+    keystone_credential_setup: docker.io/kolla/ubuntu-source-keystone:3.0.3
+    keystone_credential_rotate: docker.io/kolla/ubuntu-source-keystone:3.0.3
+    keystone_api: docker.io/kolla/ubuntu-source-keystone:3.0.3
     dep_check: quay.io/stackanetes/kubernetes-entrypoint:v0.2.1
   pull_policy: "IfNotPresent"
 
@@ -53,6 +53,9 @@ network:
     port: 80
     ingress:
       public: true
+      annotations:
+        kubernetes.io/ingress.class: "nginx"
+        ingress.kubernetes.io/rewrite-target: /
     external_policy_local: false
     node_port:
       enabled: false
@@ -566,9 +569,6 @@ endpoints:
   oslo_messaging:
     namespace: null
     auth:
-      admin:
-        username: admin
-        password: password
       user:
         username: keystone
         password: password

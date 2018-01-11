@@ -17,8 +17,12 @@ limitations under the License.
 {{- if .Values.manifests.daemonset_metadata_agent }}
 {{- $envAll := . }}
 {{- $dependencies := .Values.dependencies.metadata }}
+
 {{- $mounts_neutron_metadata_agent := .Values.pod.mounts.neutron_metadata_agent.neutron_metadata_agent }}
 {{- $mounts_neutron_metadata_agent_init := .Values.pod.mounts.neutron_metadata_agent.init_container }}
+
+{{- $serviceAccountName := "neutron-metadata-agent" }}
+{{ tuple $envAll $dependencies $serviceAccountName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
 ---
 apiVersion: extensions/v1beta1
 kind: DaemonSet
@@ -34,6 +38,7 @@ spec:
         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
     spec:
+      serviceAccountName: {{ $serviceAccountName }}
       nodeSelector:
         {{ .Values.labels.agent.metadata.node_selector_key }}: {{ .Values.labels.agent.metadata.node_selector_value }}
       dnsPolicy: ClusterFirstWithHostNet
@@ -41,7 +46,7 @@ spec:
       initContainers:
 {{ tuple $envAll $dependencies $mounts_neutron_metadata_agent_init | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
         - name: neutron-metadata-agent-init
-          image: {{ .Values.images.tags.metadata }}
+          image: {{ .Values.images.tags.neutron_metadata }}
           imagePullPolicy: {{ .Values.images.pull_policy }}
 {{ tuple $envAll $envAll.Values.pod.resources.agent.metadata | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
           securityContext:
@@ -61,7 +66,7 @@ spec:
               mountPath: /tmp/pod-shared
       containers:
         - name: neutron-metadata-agent
-          image: {{ .Values.images.tags.metadata }}
+          image: {{ .Values.images.tags.neutron_metadata }}
           imagePullPolicy: {{ .Values.images.pull_policy }}
 {{ tuple $envAll $envAll.Values.pod.resources.agent.metadata | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
           securityContext:

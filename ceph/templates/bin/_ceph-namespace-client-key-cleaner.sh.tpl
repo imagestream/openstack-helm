@@ -21,4 +21,4 @@ set -ex
 kubectl delete secret \
   --namespace ${DEPLOYMENT_NAMESPACE} \
   --ignore-not-found=true \
-  ${PVC_CEPH_STORAGECLASS_USER_SECRET_NAME}
+  ${PVC_CEPH_RBD_STORAGECLASS_USER_SECRET_NAME}

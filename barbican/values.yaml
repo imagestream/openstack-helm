@@ -134,6 +134,9 @@ network:
   api:
     ingress:
       public: true
+      annotations:
+        kubernetes.io/ingress.class: "nginx"
+        ingress.kubernetes.io/rewrite-target: /
     external_policy_local: false
     node_port:
       enabled: false
@@ -447,9 +450,6 @@ endpoints:
         default: 3306
   oslo_messaging:
     auth:
-      admin:
-        username: admin
-        password: password
       user:
         username: rabbitmq
         password: password

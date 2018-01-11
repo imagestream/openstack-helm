@@ -17,8 +17,12 @@ limitations under the License.
 {{- if .Values.manifests.deployment_central }}
 {{- $envAll := . }}
 {{- $dependencies := .Values.dependencies.central }}
+
 {{- $mounts_ceilometer_central := .Values.pod.mounts.ceilometer_central.ceilometer_central }}
 {{- $mounts_ceilometer_central_init := .Values.pod.mounts.ceilometer_central.init_container }}
+
+{{- $serviceAccountName := "ceilometer-central" }}
+{{ tuple $envAll $dependencies $serviceAccountName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
 ---
 apiVersion: apps/v1beta1
 kind: Deployment
@@ -35,6 +39,7 @@ spec:
         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
     spec:
+      serviceAccountName: {{ $serviceAccountName }}
       affinity:
 {{ tuple $envAll "ceilometer" "central" | include "helm-toolkit.snippets.kubernetes_pod_anti_affinity" | indent 8 }}
       nodeSelector:
@@ -43,7 +48,7 @@ spec:
 {{ tuple $envAll $dependencies $mounts_ceilometer_central_init | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
       containers:
         - name: ceilometer-central
-          image: {{ .Values.images.tags.central }}
+          image: {{ .Values.images.tags.ceilometer_central }}
           imagePullPolicy: {{ .Values.images.pull_policy }}
 {{ tuple $envAll $envAll.Values.pod.resources.central | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
           command:

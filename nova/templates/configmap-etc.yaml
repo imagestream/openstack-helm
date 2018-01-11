@@ -14,8 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */}}
 
-{{- if .Values.manifests.configmap_etc }}
-{{- $envAll := . }}
+{{- define "nova.configmap.etc" }}
+{{- $configMapName := index . 0 }}
+{{- $envAll := index . 1 }}
+{{- with $envAll }}
 
 {{- if empty .Values.conf.nova.keystone_authtoken.auth_uri -}}
 {{- tuple "identity" "internal" "api" . | include "helm-toolkit.endpoints.keystone_endpoint_uri_lookup" | set .Values.conf.nova.keystone_authtoken "auth_uri" | quote | trunc 0 -}}
@@ -58,6 +60,10 @@ limitations under the License.
 
 {{- if empty .Values.conf.nova.api_database.connection -}}
 {{- tuple "oslo_db_api" "internal" "user" "mysql" . | include "helm-toolkit.endpoints.authenticated_endpoint_uri_lookup" | set .Values.conf.nova.api_database "connection" | quote | trunc 0 -}}
+{{- end -}}
+
+{{- if empty .Values.conf.nova.cell0_database.connection -}}
+{{- tuple "oslo_db_cell0" "internal" "user" "mysql" . | include "helm-toolkit.endpoints.authenticated_endpoint_uri_lookup" | set .Values.conf.nova.cell0_database "connection" | quote | trunc 0 -}}
 {{- end -}}
 
 {{- if empty .Values.conf.nova.DEFAULT.transport_url -}}
@@ -109,6 +115,29 @@ limitations under the License.
 {{- tuple "compute_metadata" "public" "metadata" . | include "helm-toolkit.endpoints.endpoint_port_lookup" | set .Values.conf.nova.DEFAULT "metadata_port" | quote | trunc 0 -}}
 {{- end -}}
 
+{{- if empty .Values.conf.nova.placement.auth_url -}}
+{{- tuple "identity" "internal" "api" . | include "helm-toolkit.endpoints.keystone_endpoint_uri_lookup"| set .Values.conf.nova.placement "auth_url" | quote | trunc 0 -}}
+{{- end -}}
+
+{{- if empty .Values.conf.nova.placement.region_name -}}
+{{- set .Values.conf.nova.placement "region_name" .Values.endpoints.identity.auth.placement.region_name | quote | trunc 0 -}}
+{{- end -}}
+{{- if empty .Values.conf.nova.placement.project_name -}}
+{{- set .Values.conf.nova.placement "project_name" .Values.endpoints.identity.auth.placement.project_name | quote | trunc 0 -}}
+{{- end -}}
+{{- if empty .Values.conf.nova.placement.project_domain_name -}}
+{{- set .Values.conf.nova.placement "project_domain_name" .Values.endpoints.identity.auth.placement.project_domain_name | quote | trunc 0 -}}
+{{- end -}}
+{{- if empty .Values.conf.nova.placement.user_domain_name -}}
+{{- set .Values.conf.nova.placement "user_domain_name" .Values.endpoints.identity.auth.placement.user_domain_name | quote | trunc 0 -}}
+{{- end -}}
+{{- if empty .Values.conf.nova.placement.username -}}
+{{- set .Values.conf.nova.placement "username" .Values.endpoints.identity.auth.placement.username | quote | trunc 0 -}}
+{{- end -}}
+{{- if empty .Values.conf.nova.placement.password -}}
+{{- set .Values.conf.nova.placement "password" .Values.endpoints.identity.auth.placement.password | quote | trunc 0 -}}
+{{- end -}}
+
 {{- if empty .Values.conf.nova.vnc.novncproxy_base_url -}}
 {{- tuple "compute_novnc_proxy" "public" "novnc_proxy" . | include "helm-toolkit.endpoints.keystone_endpoint_uri_lookup" | set .Values.conf.nova.vnc "novncproxy_base_url" | quote | trunc 0 -}}
 {{- end -}}
@@ -121,7 +150,7 @@ limitations under the License.
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: nova-etc
+  name: {{ $configMapName }}
 data:
   rally_tests.yaml: |+
 {{ toYaml .Values.conf.rally_tests.tests | indent 4 }}
@@ -141,6 +170,12 @@ data:
 {{- tuple .Values.conf.rootwrap_filters.network "etc/rootwrap.d/_network.filters.tpl" . | include "helm-toolkit.utils.configmap_templater" }}
   nova.conf: |+
 {{ include "helm-toolkit.utils.to_oslo_conf" .Values.conf.nova | indent 4 }}
+  wsgi-nova-placement.conf: |+
+{{- tuple .Values.conf.wsgi_placement "etc/_wsgi-nova-placement.conf.tpl" . | include "helm-toolkit.utils.configmap_templater" }}
   ssh-config.sh: |+
 {{- tuple .Values.conf.ssh "etc/_ssh-config.tpl" . | include "helm-toolkit.utils.configmap_templater" }}
+{{- end }}
+{{- end }}
+{{- if .Values.manifests.configmap_etc }}
+{{- list "nova-etc" . | include "nova.configmap.etc" }}
 {{- end }}

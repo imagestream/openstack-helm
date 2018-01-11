@@ -17,29 +17,9 @@ this is found throughout the project. If you have any questions or
 comments, please create an `issue
 <https://bugs.launchpad.net/openstack-helm>`_.
 
-.. warning::
-  Please see the latest published information about our
-  application versions.
-
-  .. list-table::
-     :widths: 45 155 200
-     :header-rows: 1
-
-     * -
-       - Version
-       - Notes
-     * - **Kubernetes**
-       - `v1.7.5 <https://github.com/kubernetes/kubernetes/blob/master/CHANGELOG.md#v175>`_
-       - `Custom Controller for RDB tools <https://quay.io/repository/attcomdev/kube-controller-manager?tab=tags>`_
-     * - **Helm**
-       - `v2.6.1 <https://github.com/kubernetes/helm/releases/tag/v2.6.1>`_
-       -
-     * - **Calico**
-       - `v2.1 <http://docs.projectcalico.org/v2.1/releases/>`_
-       - `calicoct v1.1 <https://github.com/projectcalico/calicoctl/releases>`_
-     * - **Docker**
-       - `v1.12.6 <https://github.com/docker/docker/releases/tag/v1.12.6>`_
-       - `Per kubeadm Instructions <https://kubernetes.io/docs/getting-started-guides/kubeadm/>`_
+.. note::
+  Please see the supported application versions outlined in the
+  `source variable file <https://github.com/openstack/openstack-helm/blob/master/tools/gate/vars.sh>`_.
 
 Other versions and considerations (such as other CNI SDN providers),
 config map data, and value overrides will be included in other
@@ -47,6 +27,10 @@ documentation as we explore these options further.
 
 The installation procedures below, will take an administrator from a new
 ``kubeadm`` installation to Openstack-Helm deployment.
+
+.. warning:: Until the Ubuntu kernel shipped with 16.04 supports CephFS
+   subvolume mounts by default the `HWE Kernel
+   <../troubleshooting/ubuntu-hwe-kernel.rst>`__ is required to use CephFS.
 
 Kubernetes Preparation
 ======================
@@ -67,7 +51,7 @@ should just require a single command on the master node:
 
 ::
 
-    admin@kubenode01:~$ kubeadm init --kubernetes-version v1.7.5
+    admin@kubenode01:~$ kubeadm init
 
 
 If your environment looks like this after all nodes have joined the
@@ -97,55 +81,9 @@ Deploying a CNI-Enabled SDN (Calico)
 After an initial ``kubeadmn`` deployment has been scheduled, it is time
 to deploy a CNI-enabled SDN. We have selected **Calico**, but have also
 confirmed that this works for Weave, and Romana. For Calico version
-v2.1, you can apply the provided `Kubeadm Hosted
-Install <http://docs.projectcalico.org/v2.1/getting-started/kubernetes/installation/hosted/kubeadm/>`_
-manifest:
-
-::
-
-    kubectl create -f http://docs.projectcalico.org/v2.1/getting-started/kubernetes/installation/hosted/kubeadm/1.6/calico.yaml
-
-.. note::
-
-    After the container CNI-SDN is deployed, Calico has a tool you can use
-    to verify your deployment. You can download this tool,
-    ```calicoctl`` <https://github.com/projectcalico/calicoctl/releases>`__
-    to execute the following command:
-
-    ::
-
-        admin@kubenode01:~$ sudo calicoctl node status
-        Calico process is running.
-
-        IPv4 BGP status
-        +--------------+-------------------+-------+----------+-------------+
-        | PEER ADDRESS |     PEER TYPE     | STATE |  SINCE   |    INFO     |
-        +--------------+-------------------+-------+----------+-------------+
-        | 192.168.3.22 | node-to-node mesh | up    | 16:34:03 | Established |
-        | 192.168.3.23 | node-to-node mesh | up    | 16:33:59 | Established |
-        | 192.168.3.24 | node-to-node mesh | up    | 16:34:00 | Established |
-        | 192.168.3.25 | node-to-node mesh | up    | 16:33:59 | Established |
-        +--------------+-------------------+-------+----------+-------------+
-
-        IPv6 BGP status
-        No IPv6 peers found.
-
-        admin@kubenode01:~$
-
-    It is important to call out that the Self Hosted Calico manifest for
-    v2.1 (above) supports ``nodetonode`` mesh, and ``nat-outgoing`` by
-    default. This is a change from version 1.6.
-
-Setting Up RBAC
----------------
-
-Kubernetes >=v1.6 makes RBAC the default admission controller. OpenStack
-Helm does not currently have RBAC roles and permissions for each
-component so we relax the access control rules:
-
-.. code:: bash
-
-    kubectl update -f https://raw.githubusercontent.com/openstack/openstack-helm/master/tools/kubeadm-aio/assets/opt/rbac/dev.yaml
+v2.6, you can apply the provided `Kubeadm Hosted
+Install <https://docs.projectcalico.org/v2.6/getting-started/kubernetes/installation/hosted/kubeadm/>`_
+manifest.
 
 Enabling Cron Jobs
 ------------------
@@ -182,7 +120,7 @@ our hosts. Using our Ubuntu example:
 
 ::
 
-    sudo apt-get install ceph-common -y
+    sudo apt-get install ceph-common
 
 Kubernetes Node DNS Resolution
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -255,6 +193,7 @@ Nodes are labeled according to their Openstack roles:
 * **Ceph OSD Nodes:** ``ceph-osd``
 * **Ceph MDS Nodes:** ``ceph-mds``
 * **Ceph RGW Nodes:** ``ceph-rgw``
+* **Ceph MGR Nodes:** ``ceph-mgr``
 * **Control Plane:** ``openstack-control-plane``
 * **Compute Nodes:** ``openvswitch``, ``openstack-compute-node``
 
@@ -265,6 +204,7 @@ Nodes are labeled according to their Openstack roles:
     kubectl label nodes ceph-osd=enabled --all
     kubectl label nodes ceph-mds=enabled --all
     kubectl label nodes ceph-rgw=enabled --all
+    kubectl label nodes ceph-mgr=enabled --all
     kubectl label nodes openvswitch=enabled --all
     kubectl label nodes openstack-compute-node=enabled --all
 
@@ -471,7 +411,7 @@ now create endpoints in the Keystone service catalog:
 ::
 
     helm install --namespace=openstack --name=horizon ./horizon \
-      --set network.enable_node_port=true
+      --set network.node_port.enabled=true
 
 **Install Glance:**
 
@@ -539,3 +479,109 @@ up:
 
 Finally, you should now be able to access horizon at http:// using
 admin/password
+
+Node and label specific configurations
+--------------------------------------
+
+There are situations where we need to define configuration differently for
+different nodes in the environment. For example, we may require that some nodes
+have a different vcpu_pin_set or other hardware specific deltas in nova.conf.
+
+To do this, we can specify overrides in the values fed to the chart. Ex:
+
+.. code-block:: yaml
+
+    conf:
+      nova:
+        DEFAULT:
+          vcpu_pin_set: "0-31"
+          cpu_allocation_ratio: 3.0
+      overrides:
+        nova_compute:
+          labels:
+          - label:
+              key: compute-type
+              values:
+              - "dpdk"
+              - "sriov"
+            conf:
+              nova:
+                DEFAULT:
+                  vcpu_pin_set: "0-15"
+          - label:
+              key: another-label
+              values:
+              - "another-value"
+            conf:
+              nova:
+                DEFAULT:
+                  vcpu_pin_set: "16-31"
+          hosts:
+          - name: host1.fqdn
+            conf:
+              nova:
+                DEFAULT:
+                  vcpu_pin_set: "8-15"
+          - name: host2.fqdn
+            conf:
+              nova:
+                DEFAULT:
+                  vcpu_pin_set: "16-23"
+
+Note that only one set of overrides is applied per node, such that:
+1. Host overrides supercede label overrides
+2. The farther down the list the label appears, the greater precedence it has.
+e.g., "another-label" overrides will apply to a node containing both labels.
+
+Also note that other non-overridden values are inherited by hosts and labels with overrides.
+The following shows a set of example hosts and the values fed into the configmap for each:
+
+1. ``host1.fqdn`` with labels ``compute-type: dpdk, sriov`` and ``another-label: another-value``:
+
+.. code-block:: yaml
+
+    conf:
+      nova:
+        DEFAULT:
+          vcpu_pin_set: "8-15"
+          cpu_allocation_ratio: 3.0
+
+2. ``host2.fqdn`` with labels ``compute-type: dpdk, sriov`` and ``another-label: another-value``:
+
+.. code-block:: yaml
+
+    conf:
+      nova:
+        DEFAULT:
+          vcpu_pin_set: "16-23"
+          cpu_allocation_ratio: 3.0
+
+3. ``host3.fqdn`` with labels ``compute-type: dpdk, sriov`` and ``another-label: another-value``:
+
+.. code-block:: yaml
+
+    conf:
+      nova:
+        DEFAULT:
+          vcpu_pin_set: "16-31"
+          cpu_allocation_ratio: 3.0
+
+4. ``host4.fqdn`` with labels ``compute-type: dpdk, sriov``:
+
+.. code-block:: yaml
+
+    conf:
+      nova:
+        DEFAULT:
+          vcpu_pin_set: "0-15"
+          cpu_allocation_ratio: 3.0
+
+5. ``host5.fqdn`` with no labels:
+
+.. code-block:: yaml
+
+    conf:
+      nova:
+        DEFAULT:
+          vcpu_pin_set: "0-31"
+          cpu_allocation_ratio: 3.0

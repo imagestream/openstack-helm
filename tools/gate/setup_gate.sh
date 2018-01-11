@@ -30,11 +30,6 @@ source ${WORK_DIR}/tools/gate/funcs/kube.sh
 rm -rf ${LOGS_DIR} || true
 mkdir -p ${LOGS_DIR}
 
-function dump_logs () {
-  ${WORK_DIR}/tools/gate/dump_logs.sh
-}
-trap 'dump_logs "$?"' ERR
-
 # Moving the ws-linter here to avoid it blocking all the jobs just for ws
 if [ "x$INTEGRATION_TYPE" == "xlinter" ]; then
   bash ${WORK_DIR}/tools/gate/whitespace.sh
@@ -60,14 +55,17 @@ if [ "x$INTEGRATION_TYPE" == "xlinter" ]; then
   helm_plugin_template_install
   helm_template_run
 else
-  cd ${WORK_DIR}; make pull-all-images
   # Setup the K8s Cluster
-  if [ "x$INTEGRATION" == "xaio" ]; then
-   bash ${WORK_DIR}/tools/gate/kubeadm_aio.sh
-  elif [ "x$INTEGRATION" == "xmulti" ]; then
-   bash ${WORK_DIR}/tools/gate/kubeadm_aio.sh
-   bash ${WORK_DIR}/tools/gate/setup_gate_worker_nodes.sh
+  if ! [ "x$ZUUL_VERSION" == "xv3" ]; then
+    if [ "x$INTEGRATION" == "xaio" ]; then
+     bash ${WORK_DIR}/tools/gate/kubeadm_aio.sh
+    elif [ "x$INTEGRATION" == "xmulti" ]; then
+     bash ${WORK_DIR}/tools/gate/kubeadm_aio.sh
+     bash ${WORK_DIR}/tools/gate/setup_gate_worker_nodes.sh
+    fi
   fi
+  # Pull all required images
+  cd ${WORK_DIR}; make pull-all-images
   if [ "x$LOOPBACK_CREATE" == "xtrue" ]; then
     loopback_dev_info_collect
     kube_label_node_block_devs
@@ -90,7 +88,5 @@ else
      bash ${WORK_DIR}/tools/gate/openstack/vm_cli_launch.sh
      bash ${WORK_DIR}/tools/gate/openstack/vm_heat_launch.sh
     fi
-    # Collect all logs from the environment
-    bash ${WORK_DIR}/tools/gate/dump_logs.sh 0
   fi
 fi

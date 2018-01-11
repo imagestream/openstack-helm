@@ -17,22 +17,27 @@ limitations under the License.
 {{- if .Values.manifests.pod_rally_test }}
 {{- $envAll := . }}
 {{- $dependencies := .Values.dependencies.tests }}
+
 {{- $mounts_neutron_tests := .Values.pod.mounts.neutron_tests.neutron_tests }}
 {{- $mounts_neutron_tests_init := .Values.pod.mounts.neutron_tests.init_container }}
+
+{{- $serviceAccountName := print .Release.Name "-test" }}
+{{ tuple $envAll $dependencies $serviceAccountName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
 ---
 apiVersion: v1
 kind: Pod
 metadata:
-  name: "{{.Release.Name}}-rally-test"
+  name: "{{.Release.Name}}-test"
   annotations:
     "helm.sh/hook": test-success
 spec:
+  serviceAccountName: {{ $serviceAccountName }}
   restartPolicy: Never
   initContainers:
 {{ tuple $envAll $dependencies $mounts_neutron_tests_init | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 4 }}
   containers:
     - name: {{.Release.Name}}-token-issue-test
-      image: {{ .Values.images.tags.test }}
+      image: {{ .Values.images.tags.neutron_test }}
       imagePullPolicy: {{ .Values.images.pull_policy }}
 {{ tuple $envAll $envAll.Values.pod.resources.jobs.tests | include "helm-toolkit.snippets.kubernetes_resources" | indent 6 }}
       env:

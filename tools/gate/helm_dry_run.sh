@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 set -ex
-: ${WORK_DIR:="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"}
+: ${WORK_DIR:="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )/../.."}
 source ${WORK_DIR}/tools/gate/vars.sh
 source ${WORK_DIR}/tools/gate/funcs/helm.sh
 
@@ -21,5 +21,5 @@ helm_build
 mkdir -p ${LOGS_DIR}/dry-runs
 for CHART in $(helm search | awk '{ print $1 }' | tail -n +2 | awk -F '/' '{ print $NF }'); do
   echo "Dry Running chart: $CHART"
-  helm install --dry-run --debug local/$CHART --name=$CHART --namespace=openstack > ${LOGS_DIR}/dry-runs/$CHART
+  helm install --dry-run --debug local/$CHART --name="${CHART}-dry-run" --namespace=openstack > ${LOGS_DIR}/dry-runs/$CHART
 done

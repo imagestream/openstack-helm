@@ -27,13 +27,13 @@ images:
   tags:
     bootstrap: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
     db_init: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
-    db_sync: docker.io/kolla/ubuntu-source-senlin-api:3.0.3
+    senlin_db_sync: docker.io/kolla/ubuntu-source-senlin-api:3.0.3
     db_drop: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
     ks_user: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
     ks_service: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
     ks_endpoints: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
-    api: docker.io/kolla/ubuntu-source-senlin-api:3.0.3
-    engine: docker.io/kolla/ubuntu-source-senlin-engine:3.0.3
+    senlin_api: docker.io/kolla/ubuntu-source-senlin-api:3.0.3
+    senlin_engine: docker.io/kolla/ubuntu-source-senlin-engine:3.0.3
     dep_check: quay.io/stackanetes/kubernetes-entrypoint:v0.2.1
   pull_policy: "IfNotPresent"
 
@@ -128,6 +128,9 @@ network:
   api:
     ingress:
       public: true
+      annotations:
+        kubernetes.io/ingress.class: "nginx"
+        ingress.kubernetes.io/rewrite-target: /
     node_port:
       enabled: false
       port: 30778
@@ -275,9 +278,6 @@ endpoints:
         default: 11211
   oslo_messaging:
     auth:
-      admin:
-        username: admin
-        password: password
       user:
         username: rabbitmq
         password: password

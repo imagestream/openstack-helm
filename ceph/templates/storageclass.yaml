@@ -17,25 +17,27 @@ limitations under the License.
 {{- if .Values.manifests.storageclass }}
 {{- $envAll := . }}
 {{- if .Values.deployment.ceph }}
-{{- if .Values.storageclass.provision_storage_class }}
+{{- if .Values.storageclass.rbd.provision_storage_class }}
 ---
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
-    name: {{ .Values.storageclass.name }}
-provisioner: {{ .Values.storageclass.provisioner }}
+    name: {{ .Values.storageclass.rbd.name }}
+provisioner: {{ .Values.storageclass.rbd.provisioner }}
 parameters:
 {{- if .Values.deployment.external_ceph }}
     monitors: {{ tuple "ceph_mon" "internal" "mon" . | include "helm-toolkit.endpoints.host_and_port_no_fqdn_endpoint_uri_lookup" }}
 {{- else }}
     monitors: {{ tuple "ceph_mon" "internal" "mon" . | include "helm-toolkit.endpoints.host_and_port_endpoint_uri_lookup" }}
 {{- end }}
-    adminId: {{ .Values.storageclass.admin_id }}
-    adminSecretName: {{ .Values.storageclass.admin_secret_name }}
-    adminSecretNamespace: {{ .Values.storageclass.admin_secret_namespace }}
-    pool: {{ .Values.storageclass.pool }}
-    userId: {{ .Values.storageclass.user_id }}
-    userSecretName: {{ .Values.storageclass.user_secret_name }}
+    adminId: {{ .Values.storageclass.rbd.admin_id }}
+    adminSecretName: {{ .Values.storageclass.rbd.admin_secret_name }}
+    adminSecretNamespace: {{ .Values.storageclass.rbd.admin_secret_namespace }}
+    pool: {{ .Values.storageclass.rbd.pool }}
+    userId: {{ .Values.storageclass.rbd.user_id }}
+    userSecretName: {{ .Values.storageclass.rbd.user_secret_name }}
+    imageFormat: {{ .Values.storageclass.rbd.image_format | quote }}
+    imageFeatures: {{ .Values.storageclass.rbd.image_features }}
 {{- end }}
 {{- end }}
 {{- end }}

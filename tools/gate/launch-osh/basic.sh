@@ -119,13 +119,7 @@ if [ "x$OPENSTACK_OBJECT_STORAGE" == "xradosgw" ]; then
   kube_wait_for_pods openstack ${POD_START_TIMEOUT_OPENSTACK}
 fi
 
-helm install --namespace=openstack ${WORK_DIR}/etcd --name=etcd-rabbitmq
-if [ "x$INTEGRATION" == "xmulti" ]; then
-    helm install --namespace=openstack ${WORK_DIR}/rabbitmq --name=rabbitmq
-else
-    helm install --namespace=openstack ${WORK_DIR}/rabbitmq --name=rabbitmq \
-         --set pod.replicas.server=1
-fi
+helm install --namespace=openstack ${WORK_DIR}/rabbitmq --name=rabbitmq
 
 if [ "x$INTEGRATION" == "xmulti" ]; then
   if [ "x$PVC_BACKEND" == "xceph" ]; then
@@ -195,6 +189,9 @@ kube_wait_for_pods openstack ${POD_START_TIMEOUT_OPENSTACK}
 helm install --namespace=openstack ${WORK_DIR}/heat --name=heat
 kube_wait_for_pods openstack ${POD_START_TIMEOUT_OPENSTACK}
 
+helm install --namespace=openstack ${WORK_DIR}/congress --name=congress
+kube_wait_for_pods openstack ${POD_START_TIMEOUT_OPENSTACK}
+
 if [ "x$INTEGRATION" == "xmulti" ]; then
   helm install --namespace=openstack ${WORK_DIR}/horizon --name=horizon
   kube_wait_for_pods openstack ${POD_START_TIMEOUT_OPENSTACK}
@@ -214,7 +211,7 @@ if [ "x$INTEGRATION" == "xmulti" ]; then
   helm_test_deployment cinder ${SERVICE_TEST_TIMEOUT}
   helm_test_deployment neutron ${SERVICE_TEST_TIMEOUT}
   helm_test_deployment nova ${SERVICE_TEST_TIMEOUT}
-  helm_test_deployment barbican ${SERVICE_TEST_TIMEOUT} norally
+  helm_test_deployment barbican ${SERVICE_TEST_TIMEOUT}
 fi
 
 if [ "x$RALLY_CHART_ENABLED" == "xtrue" ]; then

@@ -18,28 +18,26 @@ limitations under the License.
 
 set -ex
 
+CEPH_RBD_KEY=$(kubectl get secret ${PVC_CEPH_RBD_STORAGECLASS_ADMIN_SECRET_NAME} \
+    --namespace=${PVC_CEPH_RBD_STORAGECLASS_DEPLOYED_NAMESPACE} \
+    -o json )
+
 ceph_activate_namespace() {
   kube_namespace=$1
-  let retries=10
-  while [ $((retries)) -gt 0 ] ; do
-      CEPH_KEY=$(kubectl get secret ${PVC_CEPH_STORAGECLASS_ADMIN_SECRET_NAME} \
-          --namespace=${PVC_CEPH_STORAGECLASS_DEPLOYED_NAMESPACE} \
-          -o json | jq -r '.data | .[]')
-      [ ! -z ${CEPH_KEY} ] && break
-      sleep 6
-      let retries=retries-1
-  done
+  secret_type=$2
+  secret_name=$3
+  ceph_key=$4
   {
   cat <<EOF
 apiVersion: v1
 kind: Secret
 metadata:
-  name: "${PVC_CEPH_STORAGECLASS_USER_SECRET_NAME}"
-type: kubernetes.io/rbd
+  name: "${secret_name}"
+type: "${secret_type}"
 data:
-  key: $(echo ${CEPH_KEY})
+  key: $( echo ${ceph_key} )
 EOF
   } | kubectl create --namespace ${kube_namespace} -f -
 }
 
-ceph_activate_namespace ${DEPLOYMENT_NAMESPACE}
+ceph_activate_namespace ${DEPLOYMENT_NAMESPACE} "kubernetes.io/rbd" ${PVC_CEPH_RBD_STORAGECLASS_USER_SECRET_NAME} "$(echo ${CEPH_RBD_KEY} | jq -r '.data | .[]')"
