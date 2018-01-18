@@ -21,20 +21,21 @@ release_group: null
 
 images:
   tags:
-    bootstrap: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
+    bootstrap: docker.io/kolla/ubuntu-source-heat-engine:ocata
     neutron_test: docker.io/kolla/ubuntu-source-rally:4.0.0
-    db_init: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
-    neutron_db_sync: docker.io/kolla/ubuntu-source-neutron-server:3.0.3
-    db_drop: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
-    ks_user: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
-    ks_service: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
-    ks_endpoints: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
-    neutron_server: docker.io/kolla/ubuntu-source-neutron-server:3.0.3
-    neutron_dhcp: docker.io/kolla/ubuntu-source-neutron-dhcp-agent:3.0.3
-    neutron_metadata: docker.io/kolla/ubuntu-source-neutron-metadata-agent:3.0.3
-    neutron_l3: docker.io/kolla/ubuntu-source-neutron-l3-agent:3.0.3
-    neutron_openvswitch_agent: docker.io/kolla/ubuntu-source-neutron-openvswitch-agent:3.0.3
-    neutron_linuxbridge_agent: docker.io/kolla/ubuntu-source-neutron-linuxbridge-agent:3.0.3
+    db_init: docker.io/kolla/ubuntu-source-heat-engine:ocata
+    neutron_db_sync: docker.io/kolla/ubuntu-source-neutron-server:ocata
+    db_drop: docker.io/kolla/ubuntu-source-heat-engine:ocata
+    ks_user: docker.io/kolla/ubuntu-source-heat-engine:ocata
+    ks_service: docker.io/kolla/ubuntu-source-heat-engine:ocata
+    ks_endpoints: docker.io/kolla/ubuntu-source-heat-engine:ocata
+    neutron_server: docker.io/kolla/ubuntu-source-neutron-server:ocata
+    neutron_dhcp: docker.io/kolla/ubuntu-source-neutron-dhcp-agent:ocata
+    neutron_metadata: docker.io/kolla/ubuntu-source-neutron-metadata-agent:ocata
+    neutron_l3: docker.io/kolla/ubuntu-source-neutron-l3-agent:ocata
+    neutron_lbaas: docker.io/kolla/ubuntu-source-neutron-lbaas-agent:ocata
+    neutron_openvswitch_agent: docker.io/kolla/ubuntu-source-neutron-openvswitch-agent:ocata
+    neutron_linuxbridge_agent: docker.io/kolla/ubuntu-source-neutron-linuxbridge-agent:ocata
     dep_check: quay.io/stackanetes/kubernetes-entrypoint:v0.2.1
   pull_policy: "IfNotPresent"
 
@@ -54,6 +55,9 @@ labels:
       node_selector_key: openstack-control-plane
       node_selector_value: enabled
     l3:
+      node_selector_key: openstack-control-plane
+      node_selector_value: enabled
+    lbaas:
       node_selector_key: openstack-control-plane
       node_selector_value: enabled
     metadata:
@@ -215,7 +219,7 @@ dependencies:
 pod:
   user:
     neutron:
-      uid: 1000
+      uid: 42435
   affinity:
       anti:
         type:
@@ -235,6 +239,9 @@ pod:
     neutron_lb_agent:
       init_container: null
       neutron_lb_agent:
+    neutron_lbaas_agent:
+      init_container: null
+      neutron_lbaas_agent:
     neutron_metadata_agent:
       init_container: null
       neutron_metadata_agent:
@@ -271,6 +278,10 @@ pod:
           enabled: true
           min_ready_seconds: 0
           max_unavailable: 1
+        lbaas_agent:
+          enabled: false
+          min_ready_seconds: 0
+          max_unavailable: 1
         metadata_agent:
           enabled: true
           min_ready_seconds: 0
@@ -303,6 +314,13 @@ pod:
           memory: "1024Mi"
           cpu: "2000m"
       lb:
+        requests:
+          memory: "128Mi"
+          cpu: "100m"
+        limits:
+          memory: "1024Mi"
+          cpu: "2000m"
+      lbaas:
         requests:
           memory: "128Mi"
           cpu: "100m"
@@ -956,7 +974,7 @@ conf:
       core_plugin: ml2
       # service_plugin can be: router, odl-router, empty for calico,
       # networking_ovn.l3.l3_ovn.OVNL3RouterPlugin for OVN
-      service_plugins: router
+      service_plugins: router,neutron_lbaas.services.loadbalancer.plugin.LoadBalancerPluginv2
       metadata_proxy_socket: /var/lib/neutron/openstack-helm/metadata_proxy
       allow_automatic_l3agent_failover: True
       l3_ha: True
@@ -983,6 +1001,8 @@ conf:
       memcache_security_strategy: ENCRYPT
       auth_type: password
       auth_version: v3
+    service_providers:
+      service_provider: LOADBALANCERV2:Haproxy:neutron_lbaas.drivers.haproxy.plugin_driver.HaproxyOnHostPluginDriver:default
   plugins:
     ml2_conf:
       ml2:
@@ -1044,6 +1064,9 @@ conf:
       agent_mode: legacy
       enable_metadata_proxy: True
       enable_isolated_metadata: True
+  lbaas_agent:
+    DEFAULT:
+      interface_driver: openvswitch
   metering_agent: null
   metadata_agent:
     DEFAULT:
@@ -1202,6 +1225,7 @@ manifests:
   daemonset_dhcp_agent: true
   daemonset_l3_agent: true
   daemonset_lb_agent: false
+  daemonset_lbaas_agent: true
   daemonset_metadata_agent: true
   daemonset_ovs_agent: true
   deployment_server: true

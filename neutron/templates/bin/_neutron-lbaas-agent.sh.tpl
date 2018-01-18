@@ -16,14 +16,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */}}
 
-set -ex
-
-neutron-db-manage \
-  --config-file /etc/neutron/neutron.conf \
-  --config-file /etc/neutron/plugins/ml2/ml2_conf.ini \
-  upgrade head
-
-neutron-db-manage \
-  --config-file /etc/neutron/neutron.conf \
-  --subproject neutron-lbaas \
-  upgrade head
+set -x
+exec neutron-lbaasv2-agent \
+      --config-file /etc/neutron/neutron.conf \
+      --config-file /etc/neutron/lbaas_agent.ini \
+      --config-file /etc/neutron/plugins/ml2/ml2_conf.ini
+{{- if eq .Values.network.backend "ovs" }} \
+      --config-file /etc/neutron/plugins/ml2/openvswitch_agent.ini
+{{- end }}
