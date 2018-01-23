@@ -18,6 +18,7 @@ limitations under the License.
 
 set -ex
 
+chown neutron /var/lib/neutron/openstack-helm
 metadata_ip="{{- .Values.conf.metadata_agent.DEFAULT.nova_metadata_ip -}}"
 if [ -z "${metadata_ip}" ] ; then
     metadata_ip=$(getent hosts metadata | awk '{print $1}')

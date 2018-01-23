@@ -50,7 +50,7 @@ spec:
           imagePullPolicy: {{ .Values.images.pull_policy }}
 {{ tuple $envAll $envAll.Values.pod.resources.agent.metadata | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
           securityContext:
-            runAsUser: {{ .Values.pod.user.neutron.uid }}
+            runAsUser: {{ 0 }}
           command:
             - /tmp/neutron-metadata-agent-init.sh
           volumeMounts:
@@ -64,6 +64,8 @@ spec:
               readOnly: true
             - name: pod-shared
               mountPath: /tmp/pod-shared
+            - name: socket
+              mountPath: /var/lib/neutron/openstack-helm
       containers:
         - name: neutron-metadata-agent
           image: {{ .Values.images.tags.neutron_metadata }}
@@ -153,7 +155,7 @@ spec:
               subPath: openvswitch-plugin.filters
               readOnly: true
             - name: socket
-              mountPath: /var/lib/neutron/stackanetes
+              mountPath: /var/lib/neutron/openstack-helm
             - name: pod-shared
               mountPath: /tmp/pod-shared
               readOnly: true
