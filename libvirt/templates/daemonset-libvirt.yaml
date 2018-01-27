@@ -163,13 +163,13 @@ spec:
             path: /lib/modules
         - name: var-lib-libvirt
           hostPath:
-            path: /var/lib/libvirt
+            path: /var/lib/libvirt-os-helm
         - name: var-lib-nova
           hostPath:
-            path: /var/lib/nova
+            path: /var/lib/nova-os-helm
         - name: run
           hostPath:
-            path: /run
+            path: /run-os-helm
         - name: dev
           hostPath:
             path: /dev

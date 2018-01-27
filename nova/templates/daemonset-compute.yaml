@@ -259,13 +259,13 @@ spec:
             path: /lib/modules
         - name: varlibnova
           hostPath:
-            path: /var/lib/nova
+            path: /var/lib/nova-os-helm
         - name: varliblibvirt
           hostPath:
-            path: /var/lib/libvirt
+            path: /var/lib/libvirt-os-helm
         - name: run
           hostPath:
-            path: /run
+            path: /run-os-helm
         - name: cgroup
           hostPath:
             path: /sys/fs/cgroup

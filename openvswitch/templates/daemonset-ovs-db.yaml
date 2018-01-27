@@ -76,5 +76,5 @@ spec:
           emptyDir: {}
         - name: run
           hostPath:
-            path: /run
+            path: /run-os-helm
 {{- end }}

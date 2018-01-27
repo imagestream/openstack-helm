@@ -251,7 +251,7 @@ spec:
             defaultMode: 0444
         - name: run
           hostPath:
-            path: /run
+            path: /run-os-helm
         - name: host-rootfs
           hostPath:
             path: /
