@@ -116,8 +116,12 @@ spec:
               mountPath: /var/lib/libvirt
             - name: var-lib-nova
               mountPath: /var/lib/nova
-            - name: run
-              mountPath: /run
+            - name: runlibvirt
+              mountPath: /run/libvirt
+            {{- if eq .Values.network.backend "ovs" }}
+            - name: runopenvswitch
+              mountPath: /run/openvswitch
+            {{- end }}
             - name: dev
               mountPath: /dev
             - name: cgroup
@@ -167,9 +171,14 @@ spec:
         - name: var-lib-nova
           hostPath:
             path: /var/lib/nova-os-helm
-        - name: run
+        - name: runlibvirt
           hostPath:
-            path: /run-os-helm
+            path: /run/libvirt-os-helm
+        {{- if eq .Values.network.backend "ovs" }}
+        - name: runopenvswitch
+          hostPath:
+            path: /run/openvswitch-os-helm
+        {{- end }}
         - name: dev
           hostPath:
             path: /dev

@@ -110,6 +110,9 @@ bootstrap:
           vcpus: 8
 
 network:
+  # provide what type of network wiring will be used
+  # possible options: ovs, linuxbridge
+  backend: ovs
   osapi:
     port: 8774
     ingress:

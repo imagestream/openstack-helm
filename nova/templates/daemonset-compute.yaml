@@ -191,8 +191,12 @@ spec:
               mountPath: /var/lib/nova
             - name: varliblibvirt
               mountPath: /var/lib/libvirt
-            - name: run
-              mountPath: /run
+            {{- if eq .Values.network.backend "ovs" }}
+            - name: runopenvswitch
+              mountPath: /run/openvswitch
+            {{- end }}
+            - name: runlibvirt
+              mountPath: /run/libvirt
             - name: cgroup
               mountPath: /sys/fs/cgroup
             - name: pod-shared
@@ -263,9 +267,14 @@ spec:
         - name: varliblibvirt
           hostPath:
             path: /var/lib/libvirt-os-helm
-        - name: run
+        - name: runlibvirt
           hostPath:
-            path: /run-os-helm
+            path: /run/libvirt-os-helm
+        {{- if eq .Values.network.backend "ovs" }}
+        - name: runopenvswitch
+          hostPath:
+            path: /run/openvswitch-os-helm
+        {{- end }}
         - name: cgroup
           hostPath:
             path: /sys/fs/cgroup

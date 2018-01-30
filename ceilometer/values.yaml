@@ -55,6 +55,9 @@ images:
   pull_policy: "IfNotPresent"
 
 network:
+  # provide what type of network wiring will be used
+  # possible options: ovs, linuxbridge
+  backend: ovs
   api:
     ingress:
       public: true

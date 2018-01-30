@@ -38,6 +38,11 @@ ceph:
   cinder_keyring: null
   secret_uuid: 457eb676-33da-42ec-9a8c-9293d545c337
 
+network:
+  # provide what type of network wiring will be used
+  # possible options: ovs, linuxbridge
+  backend: ovs
+
 conf:
   libvirt:
     listen_tcp: "1"

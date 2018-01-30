@@ -65,8 +65,8 @@ spec:
               readOnly: true
             - name: varlibopenvswitch
               mountPath: /var/lib/openvswitch/
-            - name: run
-              mountPath: /run
+            - name: runopenvswitch
+              mountPath: /run/openvswitch
       volumes:
         - name: openvswitch-bin
           configMap:
@@ -74,7 +74,7 @@ spec:
             defaultMode: 0555
         - name: varlibopenvswitch
           emptyDir: {}
-        - name: run
+        - name: runopenvswitch
           hostPath:
-            path: /run-os-helm
+            path: /run/openvswitch-os-helm
 {{- end }}

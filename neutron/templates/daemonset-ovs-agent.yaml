@@ -142,8 +142,8 @@ spec:
               mountPath: /etc/neutron/rootwrap.d/openvswitch-plugin.filters
               subPath: openvswitch-plugin.filters
               readOnly: true
-            - name: run
-              mountPath: /run
+            - name: runopenvswitch
+              mountPath: /run/openvswitch
 {{ if $mounts_neutron_ovs_agent.volumeMounts }}{{ toYaml $mounts_neutron_ovs_agent.volumeMounts | indent 12 }}{{ end }}
       containers:
         - name: neutron-ovs-agent
@@ -233,8 +233,8 @@ spec:
               mountPath: /etc/neutron/rootwrap.d/openvswitch-plugin.filters
               subPath: openvswitch-plugin.filters
               readOnly: true
-            - name: run
-              mountPath: /run
+            - name: runopenvswitch
+              mountPath: /run/openvswitch
 {{ if $mounts_neutron_ovs_agent.volumeMounts }}{{ toYaml $mounts_neutron_ovs_agent.volumeMounts | indent 12 }}{{ end }}
       volumes:
         - name: varlibopenvswitch
@@ -249,9 +249,9 @@ spec:
           configMap:
             name: neutron-etc
             defaultMode: 0444
-        - name: run
+        - name: runopenvswitch
           hostPath:
-            path: /run-os-helm
+            path: /run/openvswitch-os-helm
         - name: host-rootfs
           hostPath:
             path: /
