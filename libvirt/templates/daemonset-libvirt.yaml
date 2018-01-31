@@ -116,8 +116,8 @@ spec:
               mountPath: /var/lib/libvirt
             - name: var-lib-nova
               mountPath: /var/lib/nova
-            - name: runlibvirt
-              mountPath: /run/libvirt
+            - name: run
+              mountPath: /run
             {{- if eq .Values.network.backend "ovs" }}
             - name: runopenvswitch
               mountPath: /run/openvswitch
@@ -171,9 +171,9 @@ spec:
         - name: var-lib-nova
           hostPath:
             path: /var/lib/nova-os-helm
-        - name: runlibvirt
+        - name: run
           hostPath:
-            path: /run/libvirt-os-helm
+            path: /run
         {{- if eq .Values.network.backend "ovs" }}
         - name: runopenvswitch
           hostPath:
