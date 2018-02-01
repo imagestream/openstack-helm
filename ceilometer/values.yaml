@@ -41,7 +41,7 @@ images:
   tags:
     test: docker.io/kolla/ubuntu-binary-rally:4.0.0
     db_init_mongodb: docker.io/mongo:3.4.9-jessie
-    db_init: docker.io/kolla/ubuntu-source-ceilometer-api:3.0.3
+    ceilometer_db_init: docker.io/kolla/ubuntu-source-ceilometer-api:3.0.3
     ceilometer_db_sync: docker.io/kolla/ubuntu-source-ceilometer-api:3.0.3
     ks_user: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
     ks_service: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
