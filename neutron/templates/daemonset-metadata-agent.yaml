@@ -98,7 +98,7 @@ spec:
               subPath: openvswitch_agent.ini
               readOnly: true
             - name: run
-              mountPath: /run/openvswitch
+              mountPath: /run
             {{- end }}
             - name: neutron-etc
               mountPath: /etc/neutron/metadata_agent.ini

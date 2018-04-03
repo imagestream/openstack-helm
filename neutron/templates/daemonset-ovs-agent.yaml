@@ -115,7 +115,7 @@ spec:
             {{- end }}
             {{- end }}
             - name: run
-              mountPath: /run/openvswitch
+              mountPath: /run
 {{ if $mounts_neutron_ovs_agent.volumeMounts }}{{ toYaml $mounts_neutron_ovs_agent.volumeMounts | indent 12 }}{{ end }}
       containers:
         - name: neutron-ovs-agent
@@ -176,7 +176,7 @@ spec:
             {{- end }}
             {{- end }}
             - name: run
-              mountPath: /run/openvswitch
+              mountPath: /run
 {{ if $mounts_neutron_ovs_agent.volumeMounts }}{{ toYaml $mounts_neutron_ovs_agent.volumeMounts | indent 12 }}{{ end }}
       volumes:
         - name: varlibopenvswitch
