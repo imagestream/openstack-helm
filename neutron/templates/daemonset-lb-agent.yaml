@@ -114,7 +114,7 @@ spec:
               readOnly: true
             {{- end }}
             {{- end }}
-            - name: runopenvswitch
+            - name: run
               mountPath: /run/openvswitch
 {{ if $mounts_neutron_lb_agent.volumeMounts }}{{ toYaml $mounts_neutron_lb_agent.volumeMounts | indent 12 }}{{ end }}
       containers:
@@ -173,7 +173,7 @@ spec:
               readOnly: true
             {{- end }}
             {{- end }}
-            - name: runopenvswitch
+            - name: run
               mountPath: /run/openvswitch
 {{ if $mounts_neutron_lb_agent.volumeMounts }}{{ toYaml $mounts_neutron_lb_agent.volumeMounts | indent 12 }}{{ end }}
       volumes:
@@ -187,9 +187,9 @@ spec:
           configMap:
             name: {{ $configMapName }}
             defaultMode: 0444
-        - name: runopenvswitch
+        - name: run
           hostPath:
-            path: /run/openvswitch-os-helm
+            path: /run
         - name: host-rootfs
           hostPath:
             path: /
