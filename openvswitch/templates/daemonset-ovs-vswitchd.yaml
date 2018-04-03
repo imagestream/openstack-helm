@@ -88,16 +88,16 @@ spec:
               mountPath: /tmp/openvswitch-vswitchd.sh
               subPath: openvswitch-vswitchd.sh
               readOnly: true
-            - name: runopenvswitch
-              mountPath: /run/openvswitch
+            - name: run
+              mountPath: /run
       volumes:
         - name: openvswitch-bin
           configMap:
             name: openvswitch-bin
             defaultMode: 0555
-        - name: runopenvswitch
+        - name: run
           hostPath:
-            path: /run/openvswitch-os-helm
+            path: /run
         - name: host-rootfs
           hostPath:
             path: /

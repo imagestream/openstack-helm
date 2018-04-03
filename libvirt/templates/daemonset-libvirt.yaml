@@ -120,10 +120,6 @@ spec:
               mountPath: /var/lib/nova
             - name: run
               mountPath: /run
-            {{- if eq .Values.network.backend "ovs" }}
-            - name: runopenvswitch
-              mountPath: /run/openvswitch
-            {{- end }}
             - name: dev
               mountPath: /dev
             - name: cgroup
@@ -176,11 +172,6 @@ spec:
         - name: run
           hostPath:
             path: /run
-        {{- if eq .Values.network.backend "ovs" }}
-        - name: runopenvswitch
-          hostPath:
-            path: /run/openvswitch-os-helm
-        {{- end }}
         - name: dev
           hostPath:
             path: /dev

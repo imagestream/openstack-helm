@@ -692,6 +692,15 @@ conf:
     monitors: []
     cinder_keyring: null
     cinder_rbd_user: admin
+    pools:
+      backup:
+        replication: 3
+        crush_rule: replicated_rule
+        chunk_size: 8
+      volume:
+        replication: 3
+        crush_rule: replicated_rule
+        chunk_size: 8
   cinder:
     DEFAULT:
       use_syslog: false

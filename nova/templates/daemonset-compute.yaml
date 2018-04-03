@@ -212,10 +212,6 @@ spec:
               mountPath: /var/lib/libvirt
             - name: run
               mountPath: /run
-            {{- if eq .Values.network.backend "ovs" }}
-            - name: runopenvswitch
-              mountPath: /run/openvswitch
-            {{- end }}
             - name: cgroup
               mountPath: /sys/fs/cgroup
             - name: pod-shared
@@ -289,11 +285,6 @@ spec:
         - name: run
           hostPath:
             path: /run
-        {{- if eq .Values.network.backend "ovs" }}
-        - name: runopenvswitch
-          hostPath:
-            path: /run/openvswitch-os-helm
-        {{- end }}
         - name: cgroup
           hostPath:
             path: /sys/fs/cgroup
