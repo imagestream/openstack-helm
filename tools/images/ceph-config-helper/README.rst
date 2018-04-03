@@ -1,5 +1,5 @@
 Ceph Config Helper Container
-=====================
+============================
 
 This container builds a small image with kubectl and some other utilites for
 use in the ceph-config chart.
@@ -11,7 +11,7 @@ OS Specific Host setup:
 ~~~~~~~~~~~~~~~~~~~~~~~
 
 Ubuntu:
-^^^^^^^aa
+^^^^^^^
 
 From a freshly provisioned Ubuntu 16.04 LTS host run:
 
@@ -31,8 +31,9 @@ repo run:
 
 .. code:: bash
 
-    export KUBE_VERSION=v1.7.5
+    export KUBE_VERSION=v1.9.6
     sudo docker build \
+      --network host \
       --build-arg KUBE_VERSION=${KUBE_VERSION} \
       -t docker.io/port/ceph-config-helper:${KUBE_VERSION} \
       tools/images/ceph-config-helper

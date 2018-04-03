@@ -48,7 +48,7 @@ spec:
       initContainers:
 {{ tuple $envAll $dependencies $mounts_nova_compute_init | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
         - name: nova-compute-init
-          image: {{ .Values.images.tags.compute }}
+          image: {{ .Values.images.tags.nova_compute }}
           imagePullPolicy: {{ .Values.images.pull_policy }}
           securityContext:
             runAsUser: 0
@@ -66,7 +66,7 @@ spec:
               mountPath: /var/lib/nova
         {{- if .Values.ceph.enabled }}
         - name: ceph-keyring-placement
-          image: {{ .Values.images.tags.compute }}
+          image: {{ .Values.images.tags.nova_compute }}
           imagePullPolicy: {{ .Values.images.pull_policy }}
           securityContext:
             runAsUser: {{ .Values.pod.user.nova.uid }}
@@ -92,24 +92,43 @@ spec:
               subPath: key
               readOnly: true
         {{ end }}
+        {{- if eq .Values.console.console_kind "novnc"}}
         - name: nova-compute-vnc-init
-          image: {{ .Values.images.tags.compute }}
+          image: {{ .Values.images.tags.nova_compute }}
           imagePullPolicy: {{ .Values.images.pull_policy }}
 {{ tuple $envAll $envAll.Values.pod.resources.compute | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
           securityContext:
             runAsUser: {{ .Values.pod.user.nova.uid }}
           command:
-            - /tmp/nova-vnc-compute-init.sh
+            - /tmp/nova-console-compute-init.sh
           volumeMounts:
             - name: nova-bin
-              mountPath: /tmp/nova-vnc-compute-init.sh
-              subPath: nova-vnc-compute-init.sh
+              mountPath: /tmp/nova-console-compute-init.sh
+              subPath: nova-console-compute-init.sh
               readOnly: true
             - name: pod-shared
               mountPath: /tmp/pod-shared
+        {{ end }}
+        {{- if eq .Values.console.console_kind "spice"}}
+        - name: nova-compute-spice-init
+          image: {{ .Values.images.tags.nova_compute }}
+          imagePullPolicy: {{ .Values.images.pull_policy }}
+{{ tuple $envAll $envAll.Values.pod.resources.compute | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
+          securityContext:
+            runAsUser: {{ .Values.pod.user.nova.uid }}
+          command:
+            - /tmp/nova-console-compute-init.sh
+          volumeMounts:
+            - name: nova-bin
+              mountPath: /tmp/nova-console-compute-init.sh
+              subPath: nova-console-compute-init.sh
+              readOnly: true
+            - name: pod-shared
+              mountPath: /tmp/pod-shared
+        {{ end }}
       containers:
         - name: nova-compute
-          image: {{ .Values.images.tags.compute }}
+          image: {{ .Values.images.tags.nova_compute }}
           imagePullPolicy: {{ .Values.images.pull_policy }}
 {{ tuple $envAll $envAll.Values.pod.resources.compute | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
           securityContext:
@@ -133,42 +152,42 @@ spec:
               mountPath: /tmp/nova-compute.sh
               subPath: nova-compute.sh
               readOnly: true
-            - name: {{ $configMapName }}
+            - name: nova-etc
               mountPath: /etc/nova/nova.conf
               subPath: nova.conf
               readOnly: true
-            - name: {{ $configMapName }}
+            - name: nova-etc
               mountPath: /etc/nova/api-paste.ini
               subPath: api-paste.ini
               readOnly: true
-            - name: {{ $configMapName }}
+            - name: nova-etc
               mountPath: /etc/nova/policy.yaml
               subPath: policy.yaml
               readOnly: true
-            - name: {{ $configMapName }}
+            - name: nova-etc
               # NOTE (Portdirect): We mount here to override Kollas
               # custom sudoers file when using Kolla images, this
               # location will also work fine for other images.
               mountPath: /etc/sudoers.d/kolla_nova_sudoers
               subPath: nova_sudoers
               readOnly: true
-            - name: {{ $configMapName }}
+            - name: nova-etc
               mountPath: /etc/nova/rootwrap.conf
               subPath: rootwrap.conf
               readOnly: true
-            - name: {{ $configMapName }}
+            - name: nova-etc
               mountPath: /etc/nova/rootwrap.d/api-metadata.filters
               subPath: api-metadata.filters
               readOnly: true
-            - name: {{ $configMapName }}
+            - name: nova-etc
               mountPath: /etc/nova/rootwrap.d/compute.filters
               subPath: compute.filters
               readOnly: true
-            - name: {{ $configMapName }}
+            - name: nova-etc
               mountPath: /etc/nova/rootwrap.d/network.filters
               subPath: network.filters
               readOnly: true
-            - name: {{ $configMapName }}
+            - name: nova-etc
               mountPath: /root/.ssh/config
               subPath: ssh-config
               readOnly: true
@@ -206,7 +225,7 @@ spec:
               readOnly: true
 {{ if $mounts_nova_compute.volumeMounts }}{{ toYaml $mounts_nova_compute.volumeMounts | indent 12 }}{{ end }}
         - name: nova-compute-ssh
-          image: {{ .Values.images.tags.compute_ssh }}
+          image: {{ .Values.images.tags.nova_compute_ssh }}
           imagePullPolicy: {{ .Values.images.pull_policy }}
 {{ tuple $envAll $envAll.Values.pod.resources.ssh | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
           securityContext:
@@ -225,13 +244,13 @@ spec:
               mountPath: /var/lib/nova
             - name: varliblibvirt
               mountPath: /var/lib/libvirt
-            - name: {{ $configMapName }}
+            - name: nova-etc
               mountPath: /root/.ssh/id_rsa
               subPath: ssh-key-private
-            - name: {{ $configMapName }}
+            - name: nova-etc
               mountPath: /root/.ssh/id_rsa.pub
               subPath: ssh-key-public
-            - name: {{ $configMapName }}
+            - name: nova-etc
               mountPath: /root/.ssh/authorized_keys
               subPath: ssh-key-public
             - name: nova-bin
@@ -243,7 +262,7 @@ spec:
           configMap:
             name: nova-bin
             defaultMode: 0555
-        - name: {{ $configMapName }}
+        - name: nova-etc
           configMap:
             name: {{ $configMapName }}
             defaultMode: 0444
@@ -286,12 +305,17 @@ spec:
 {{ if $mounts_nova_compute.volumes }}{{ toYaml $mounts_nova_compute.volumes | indent 8 }}{{ end }}
 {{- end }}
 {{- end }}
+
 {{- if .Values.manifests.daemonset_compute }}
+{{- $envAll := . }}
 {{- $daemonset := "compute" }}
 {{- $configMapName := "nova-etc" }}
 {{- $serviceAccountName := "nova-compute" }}
-{{- $dependencies := .Values.dependencies.compute }}
-{{ tuple . $dependencies $serviceAccountName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
+
+{{- $dependencyOpts := dict "envAll" $envAll "dependencyMixinParam" $envAll.Values.network.backend "dependencyKey" "compute" -}}
+{{- $dependencies := include "helm-toolkit.utils.dependency_resolver" $dependencyOpts | toString | fromYaml }}
+
+{{ tuple $envAll $dependencies $serviceAccountName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
 {{- $daemonset_yaml := list $daemonset $configMapName $serviceAccountName $dependencies . | include "nova.compute.daemonset" | toString | fromYaml }}
 {{- $configmap_yaml := "nova.configmap.etc" }}
 {{- list $daemonset $daemonset_yaml $configmap_yaml $configMapName . | include "helm-toolkit.utils.daemonset_overrides" }}

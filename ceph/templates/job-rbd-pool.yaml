@@ -14,9 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */}}
 
-{{- if .Values.deployment.ceph }}
+{{- if and .Values.manifests.job_rbd_pool .Values.deployment.ceph }}
 {{- $envAll := . }}
-{{- $dependencies := .Values.dependencies.rbd_pool }}
+{{- $dependencies := .Values.dependencies.static.rbd_pool }}
 
 {{- $serviceAccountName := "ceph-rbd-pool" }}
 {{ tuple $envAll $dependencies $serviceAccountName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
@@ -35,33 +35,29 @@ spec:
       serviceAccountName: {{ $serviceAccountName }}
       restartPolicy: OnFailure
       affinity:
-{{ tuple $envAll "ceph" "mgr" | include "helm-toolkit.snippets.kubernetes_pod_anti_affinity" | indent 8 }}
+{{ tuple $envAll "ceph" "rbd-pool" | include "helm-toolkit.snippets.kubernetes_pod_anti_affinity" | indent 8 }}
       nodeSelector:
-        {{ .Values.labels.mgr.node_selector_key }}: {{ .Values.labels.mgr.node_selector_value }}
+        {{ $envAll.Values.labels.job.node_selector_key }}: {{ $envAll.Values.labels.job.node_selector_value }}
       initContainers:
 {{ tuple $envAll $dependencies list | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
       containers:
         - name: ceph-rbd-pool
-          image: {{ .Values.images.tags.ceph_daemon }}
+          image: {{ .Values.images.tags.ceph_rbd_pool }}
           imagePullPolicy: {{ .Values.images.pull_policy }}
 {{ tuple $envAll $envAll.Values.pod.resources.mgr | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
           env:
-            - name: RBD_POOL_PG
-              value: "128"
+            - name: CLUSTER
+              value: "ceph"
           command:
-            - /ceph_rbd_pool.sh
+            - /tmp/pool-init.sh
           volumeMounts:
             - name: ceph-bin
-              mountPath: /ceph_rbd_pool.sh
-              subPath: ceph_rbd_pool.sh
+              mountPath: /tmp/pool-init.sh
+              subPath: pool-init.sh
               readOnly: true
             - name: ceph-bin
-              mountPath: /variables_entrypoint.sh
-              subPath: variables_entrypoint.sh
-              readOnly: true
-            - name: ceph-bin
-              mountPath: /common_functions.sh
-              subPath: common_functions.sh
+              mountPath: /tmp/pool-calc.py
+              subPath: pool-calc.py
               readOnly: true
             - name: ceph-etc
               mountPath: /etc/ceph/ceph.conf

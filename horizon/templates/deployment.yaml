@@ -16,7 +16,7 @@ limitations under the License.
 
 {{- if .Values.manifests.deployment }}
 {{- $envAll := . }}
-{{- $dependencies := .Values.dependencies.dashboard }}
+{{- $dependencies := .Values.dependencies.static.dashboard }}
 
 {{- $mounts_horizon := .Values.pod.mounts.horizon.horizon }}
 {{- $mounts_horizon_init := .Values.pod.mounts.horizon.init_container }}
@@ -43,7 +43,7 @@ spec:
       affinity:
 {{ tuple $envAll "horizon" "server" | include "helm-toolkit.snippets.kubernetes_pod_anti_affinity" | indent 8 }}
       nodeSelector:
-        {{ .Values.labels.node_selector_key }}: {{ .Values.labels.node_selector_value }}
+        {{ .Values.labels.dashboard.node_selector_key }}: {{ .Values.labels.dashboard.node_selector_value }}
       terminationGracePeriodSeconds: {{ .Values.pod.lifecycle.termination_grace_period.horizon.timeout | default "30" }}
       initContainers:
 {{ tuple $envAll $dependencies $mounts_horizon_init | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
@@ -64,12 +64,13 @@ spec:
                   - /tmp/horizon.sh
                   - stop
           ports:
-            - containerPort: {{ .Values.network.port }}
+            - name: web
+              containerPort: {{ tuple "dashboard" "internal" "web" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
           readinessProbe:
             httpGet:
               scheme: HTTP
               path: /
-              port: {{ .Values.network.port }}
+              port: {{ tuple "dashboard" "internal" "web" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
             initialDelaySeconds: 15
             periodSeconds: 10
           volumeMounts:
@@ -95,34 +96,13 @@ spec:
               mountPath: /etc/openstack-dashboard/local_settings
               subPath: local_settings
               readOnly: true
+            {{- range $key, $value := $envAll.Values.conf.horizon.policy }}
+            {{- $policyFile := printf "/etc/openstack-dashboard/%s_policy.json" $key }}
             - name: horizon-etc
-              mountPath: /etc/openstack-dashboard/ceilometer_policy.json
-              subPath: ceilometer_policy.json
+              mountPath: {{ $policyFile }}
+              subPath: {{ base $policyFile }}
               readOnly: true
-            - name: horizon-etc
-              mountPath: /etc/openstack-dashboard/cinder_policy.json
-              subPath: cinder_policy.json
-              readOnly: true
-            - name: horizon-etc
-              mountPath: /etc/openstack-dashboard/glance_policy.json
-              subPath: glance_policy.json
-              readOnly: true
-            - name: horizon-etc
-              mountPath: /etc/openstack-dashboard/heat_policy.json
-              subPath: heat_policy.json
-              readOnly: true
-            - name: horizon-etc
-              mountPath: /etc/openstack-dashboard/keystone_policy.json
-              subPath: keystone_policy.json
-              readOnly: true
-            - name: horizon-etc
-              mountPath: /etc/openstack-dashboard/neutron_policy.json
-              subPath: neutron_policy.json
-              readOnly: true
-            - name: horizon-etc
-              mountPath: /etc/openstack-dashboard/nova_policy.json
-              subPath: nova_policy.json
-              readOnly: true
+            {{- end }}
 {{ if $mounts_horizon.volumeMounts }}{{ toYaml $mounts_horizon.volumeMounts | indent 12 }}{{ end }}
       volumes:
         - name: wsgi-horizon

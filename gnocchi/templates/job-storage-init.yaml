@@ -16,7 +16,7 @@ limitations under the License.
 
 {{- if .Values.manifests.job_storage_init }}
 {{- $envAll := . }}
-{{- $dependencies := .Values.dependencies.storage_init }}
+{{- $dependencies := .Values.dependencies.static.storage_init }}
 
 {{- $serviceAccountName := "gnocchi-storage-init" }}
 {{ tuple $envAll $dependencies $serviceAccountName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
@@ -34,6 +34,7 @@ rules:
       - get
       - create
       - update
+      - patch
 ---
 apiVersion: rbac.authorization.k8s.io/v1beta1
 kind: RoleBinding
@@ -61,7 +62,7 @@ spec:
       serviceAccountName: {{ $serviceAccountName }}
       restartPolicy: OnFailure
       nodeSelector:
-        {{ .Values.labels.node_selector_key }}: {{ .Values.labels.node_selector_value }}
+        {{ .Values.labels.job.node_selector_key }}: {{ .Values.labels.job.node_selector_value }}
       initContainers:
 {{ tuple $envAll $dependencies list | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
         - name: ceph-keyring-placement

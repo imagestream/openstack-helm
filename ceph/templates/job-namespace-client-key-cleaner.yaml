@@ -14,10 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */}}
 
-{{- if .Values.manifests.job_namespace_client_key_cleaner }}
+{{- if and .Values.manifests.job_namespace_client_key_cleaner .Values.deployment.client_secrets }}
 {{- $envAll := . }}
-{{- if .Values.deployment.client_secrets }}
-{{- $dependencies := .Values.dependencies.namespace_client_key_cleaner }}
+{{- $dependencies := .Values.dependencies.static.namespace_client_key_cleaner }}
 
 {{- $randStringSuffix := randAlphaNum 5 | lower }}
 
@@ -70,7 +69,7 @@ spec:
       serviceAccountName: {{ $serviceAccountName }}
       restartPolicy: OnFailure
       nodeSelector:
-        {{ $envAll.Values.labels.jobs.node_selector_key }}: {{ $envAll.Values.labels.jobs.node_selector_value }}
+        {{ $envAll.Values.labels.job.node_selector_key }}: {{ $envAll.Values.labels.job.node_selector_value }}
       initContainers:
 {{ tuple $envAll $dependencies list | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
       containers:
@@ -86,16 +85,15 @@ spec:
             - name: PVC_CEPH_RBD_STORAGECLASS_USER_SECRET_NAME
               value: {{ .Values.storageclass.rbd.user_secret_name }}
           command:
-            - /opt/ceph/ceph-namespace-client-key-cleaner.sh
+            - /tmp/provisioner-rbd-namespace-client-key-cleaner.sh
           volumeMounts:
             - name: ceph-bin
-              mountPath: /opt/ceph/ceph-namespace-client-key-cleaner.sh
-              subPath: ceph-namespace-client-key-cleaner.sh
+              mountPath: /tmp/provisioner-rbd-namespace-client-key-cleaner.sh
+              subPath: provisioner-rbd-namespace-client-key-cleaner.sh
               readOnly: true
       volumes:
         - name: ceph-bin
           configMap:
             name: ceph-bin-clients
             defaultMode: 0555
-{{- end }}
 {{- end }}

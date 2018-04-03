@@ -33,7 +33,10 @@ elif [ "x$STORAGE_BACKEND" == "xrbd" ]; then
   ceph -s
   function ensure_pool () {
     ceph osd pool stats $1 || ceph osd pool create $1 $2
-    ceph osd pool application enable $1 $3 || true
+    local test_luminous=$(ceph tell osd.* version | egrep -c "12.2|luminous")
+    if [[ ${test_luminous} -gt 0 ]]; then
+      ceph osd pool application enable $1 $3
+    fi
   }
   ensure_pool ${RBD_POOL_NAME} ${RBD_POOL_CHUNK_SIZE} "glance-image"
 
@@ -59,7 +62,7 @@ type: kubernetes.io/rbd
 data:
   key: $( echo ${ENCODED_KEYRING} )
 EOF
-  kubectl create --namespace ${NAMESPACE} -f ${SECRET}
+  kubectl apply --namespace ${NAMESPACE} -f ${SECRET}
 elif [ "x$STORAGE_BACKEND" == "xradosgw" ]; then
   radosgw-admin user stats --uid="${RADOSGW_USERNAME}" || \
     radosgw-admin user create \

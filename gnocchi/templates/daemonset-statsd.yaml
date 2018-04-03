@@ -16,7 +16,7 @@ limitations under the License.
 
 {{- if .Values.manifests.daemonset_statsd }}
 {{- $envAll := . }}
-{{- $dependencies := .Values.dependencies.statsd }}
+{{- $dependencies := .Values.dependencies.static.statsd }}
 
 {{- $mounts_gnocchi_statsd := .Values.pod.mounts.gnocchi_statsd.gnocchi_statsd }}
 {{- $mounts_gnocchi_statsd_init := .Values.pod.mounts.gnocchi_statsd.init_container }}
@@ -39,7 +39,7 @@ spec:
     spec:
       serviceAccountName: {{ $serviceAccountName }}
       nodeSelector:
-        {{ .Values.labels.node_selector_key }}: {{ .Values.labels.node_selector_value }}
+        {{ .Values.labels.statsd.node_selector_key }}: {{ .Values.labels.statsd.node_selector_value }}
       initContainers:
 {{ tuple $envAll $dependencies $mounts_gnocchi_statsd_init | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
         - name: ceph-keyring-placement
@@ -67,7 +67,7 @@ spec:
             - /tmp/gnocchi-statsd.sh
           ports:
             - name: gn-stats
-              containerPort: {{ .Values.conf.gnocchi.statsd.port }}
+              containerPort: {{ tuple "metric_statsd" "internal" "statsd" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
           volumeMounts:
             - name: pod-etc-gnocchi
               mountPath: /etc/gnocchi

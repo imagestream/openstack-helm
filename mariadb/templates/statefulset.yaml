@@ -16,7 +16,7 @@ limitations under the License.
 
 {{- if .Values.manifests.statefulset }}
 {{- $envAll := . }}
-{{- $dependencies := .Values.dependencies.mariadb }}
+{{- $dependencies := .Values.dependencies.static.mariadb }}
 
 {{- $serviceAccountName := "mariadb" }}
 {{ tuple $envAll $dependencies $serviceAccountName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
@@ -27,6 +27,7 @@ metadata:
   name: mariadb
 spec:
   serviceName: "{{ tuple "oslo_db" "discovery" . | include "helm-toolkit.endpoints.hostname_short_endpoint_lookup" }}"
+  podManagementPolicy: "Parallel"
   replicas: {{ .Values.pod.replicas.server }}
   template:
     metadata:
@@ -37,9 +38,25 @@ spec:
       affinity:
 {{ tuple $envAll "mariadb" "server" | include "helm-toolkit.snippets.kubernetes_pod_anti_affinity" | indent 8 }}
       nodeSelector:
-        {{ .Values.labels.node_selector_key }}: {{ .Values.labels.node_selector_value }}
+        {{ .Values.labels.server.node_selector_key }}: {{ .Values.labels.server.node_selector_value }}
       initContainers:
 {{ tuple $envAll $dependencies list | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
+{{- if .Values.volume.chown_on_start }}
+        - name: mariadb-perms
+          image: {{ .Values.images.tags.mariadb }}
+          imagePullPolicy: {{ .Values.images.pull_policy }}
+          securityContext:
+            runAsUser: 0
+{{ tuple $envAll $envAll.Values.pod.resources.server | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
+          command:
+            - chown
+            - -R
+            - "mysql:mysql"
+            - /var/lib/mysql
+          volumeMounts:
+            - name: mysql-data
+              mountPath: /var/lib/mysql
+{{- end }}
       containers:
         - name: mariadb
           image: {{ .Values.images.tags.mariadb }}
@@ -58,6 +75,8 @@ spec:
                   fieldPath: metadata.name
             - name: FORCE_BOOTSTRAP
               value: {{ .Values.force_bootstrap | quote }}
+            - name: FORCE_RECOVERY
+              value: {{ .Values.force_recovey | quote }}
             - name: BOOTSTRAP_FILE
               value: {{ printf "/tmp/%s.sql" (randAlphaNum 8) }}
             - name: MARIADB_REPLICAS

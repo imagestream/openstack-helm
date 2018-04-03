@@ -16,7 +16,7 @@ limitations under the License.
 
 {{- if .Values.manifests.job_run_task }}
 {{- $envAll := . }}
-{{- $dependencies := .Values.dependencies.run_task }}
+{{- $dependencies := .Values.dependencies.static.run_task }}
 
 {{- $serviceAccountName := "rally-run-task" }}
 {{ tuple $envAll $dependencies $serviceAccountName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
@@ -34,7 +34,7 @@ spec:
       serviceAccountName: {{ $serviceAccountName }}
       restartPolicy: OnFailure
       nodeSelector:
-        {{ .Values.labels.node_selector_key }}: {{ .Values.labels.node_selector_value }}
+        {{ .Values.labels.job.node_selector_key }}: {{ .Values.labels.job.node_selector_value }}
       initContainers:
 {{ tuple $envAll $dependencies list | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
         - name: rally-run-task-init

@@ -14,12 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */}}
 
-{{- if .Values.manifests.deployment_rbd_provisioner }}
+{{- if and .Values.manifests.deployment_rbd_provisioner .Values.deployment.rbd_provisioner }}
 {{- $envAll := . }}
-{{- if .Values.deployment.rbd_provisioner }}
-{{- $dependencies := .Values.dependencies.rbd_provisioner }}
+{{- $dependencies := .Values.dependencies.static.rbd_provisioner }}
 
-{{- $serviceAccountName := "ceph-rbd-provisioner"}}
+{{- $serviceAccountName := printf "%s-%s" .Release.Name "ceph-rbd-provisioner" }}
 {{ tuple $envAll $dependencies $serviceAccountName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
 ---
 kind: ClusterRole
@@ -135,6 +134,8 @@ spec:
       serviceAccountName: {{ $serviceAccountName }}
       affinity:
 {{ tuple $envAll "rbd" "provisioner" | include "helm-toolkit.snippets.kubernetes_pod_anti_affinity" | indent 8 }}
+      nodeSelector:
+        {{ .Values.labels.provisioner.node_selector_key }}: {{ .Values.labels.provisioner.node_selector_value }}
       initContainers:
 {{ tuple $envAll $dependencies list | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
       containers:
@@ -150,16 +151,15 @@ spec:
                 fieldRef:
                   fieldPath: metadata.name
           command:
-            - /tmp/rbd-provisioner.sh
+            - /tmp/provisioner-rbd-start.sh
           volumeMounts:
             - name: ceph-bin
-              mountPath: /tmp/rbd-provisioner.sh
-              subPath: rbd-provisioner.sh
+              mountPath: /tmp/provisioner-rbd-start.sh
+              subPath: provisioner-rbd-start.sh
               readOnly: true
       volumes:
         - name: ceph-bin
           configMap:
             name: ceph-bin
             defaultMode: 0555
-{{- end }}
 {{- end }}

@@ -21,35 +21,28 @@ release_group: null
 
 images:
   tags:
-    bootstrap: docker.io/kolla/ubuntu-source-heat-engine:ocata
-    neutron_test: docker.io/kolla/ubuntu-source-rally:4.0.0
-    db_init: docker.io/kolla/ubuntu-source-heat-engine:ocata
-    neutron_db_sync: docker.io/kolla/ubuntu-source-neutron-server:ocata
-    db_drop: docker.io/kolla/ubuntu-source-heat-engine:ocata
-    ks_user: docker.io/kolla/ubuntu-source-heat-engine:ocata
-    ks_service: docker.io/kolla/ubuntu-source-heat-engine:ocata
-    ks_endpoints: docker.io/kolla/ubuntu-source-heat-engine:ocata
-    neutron_server: docker.io/kolla/ubuntu-source-neutron-server:ocata
-    neutron_dhcp: docker.io/kolla/ubuntu-source-neutron-dhcp-agent:ocata
-    neutron_metadata: docker.io/kolla/ubuntu-source-neutron-metadata-agent:ocata
-    neutron_l3: docker.io/kolla/ubuntu-source-neutron-l3-agent:ocata
+    bootstrap: docker.io/openstackhelm/heat:newton
+    test: docker.io/kolla/ubuntu-source-rally:4.0.0
+    db_init: docker.io/openstackhelm/heat:newton
+    neutron_db_sync: docker.io/openstackhelm/neutron:newton
+    db_drop: docker.io/openstackhelm/heat:newton
+    rabbit_init: docker.io/rabbitmq:3.7-management
+    ks_user: docker.io/openstackhelm/heat:newton
+    ks_service: docker.io/openstackhelm/heat:newton
+    ks_endpoints: docker.io/openstackhelm/heat:newton
+    neutron_server: docker.io/openstackhelm/neutron:newton
+    neutron_dhcp: docker.io/openstackhelm/neutron:newton
+    neutron_metadata: docker.io/openstackhelm/neutron:newton
+    neutron_l3: docker.io/openstackhelm/neutron:newton
     neutron_lbaas: docker.io/kolla/ubuntu-source-neutron-lbaas-agent:ocata
-    neutron_openvswitch_agent: docker.io/kolla/ubuntu-source-neutron-openvswitch-agent:ocata
-    neutron_linuxbridge_agent: docker.io/kolla/ubuntu-source-neutron-linuxbridge-agent:ocata
-    dep_check: quay.io/stackanetes/kubernetes-entrypoint:v0.2.1
+    neutron_openvswitch_agent: docker.io/openstackhelm/neutron:newton
+    neutron_linuxbridge_agent: docker.io/openstackhelm/neutron:newton
+    neutron_sriov_agent: docker.io/openstackhelm/neutron:newton-sriov-1804
+    neutron_sriov_agent_init: docker.io/openstackhelm/neutron:newton-sriov-1804
+    dep_check: quay.io/stackanetes/kubernetes-entrypoint:v0.3.0
   pull_policy: "IfNotPresent"
 
 labels:
-  # ovs is a special case, requiring a special
-  # label that can apply to both control hosts
-  # and compute hosts, until we get more sophisticated
-  # with our daemonset scheduling
-  ovs:
-      node_selector_key: openvswitch
-      node_selector_value: enabled
-  lb:
-      node_selector_key: linuxbridge
-      node_selector_value: enabled
   agent:
     dhcp:
       node_selector_key: openstack-control-plane
@@ -63,14 +56,34 @@ labels:
     metadata:
       node_selector_key: openstack-control-plane
       node_selector_value: enabled
+  job:
+    node_selector_key: openstack-control-plane
+    node_selector_value: enabled
+  lb:
+    node_selector_key: linuxbridge
+    node_selector_value: enabled
+  # openvswitch is a special case, requiring a special
+  # label that can apply to both control hosts
+  # and compute hosts, until we get more sophisticated
+  # with our daemonset scheduling
+  ovs:
+    node_selector_key: openvswitch
+    node_selector_value: enabled
+  sriov:
+    node_selector_key: sriov
+    node_selector_value: enabled
   server:
+    node_selector_key: openstack-control-plane
+    node_selector_value: enabled
+  test:
     node_selector_key: openstack-control-plane
     node_selector_value: enabled
 
 network:
   # provide what type of network wiring will be used
-  # possible options: ovs, linuxbridge
-  backend: ovs
+  # possible options: openvswitch, linuxbridge, sriov
+  backend:
+    - openvswitch
   external_bridge: br-ex
   ip_address: 0.0.0.0
   interface:
@@ -91,141 +104,214 @@ network:
   #   br-physnet1: eth3
   #   br0: if0
   #   br1: iface_two
+  sriov:
+  # To perform setup of network interfaces using the SR-IOV init
+  # container you can use a section similar to:
+  # sriov:
+  #   - device: ${DEV}
+  #     num_vfs: 8
   server:
-    port: 9696
     ingress:
       public: true
+      classes:
+        namespace: "nginx"
+        cluster: "nginx-cluster"
       annotations:
-        kubernetes.io/ingress.class: "nginx"
-        ingress.kubernetes.io/rewrite-target: /
+        nginx.ingress.kubernetes.io/rewrite-target: /
     external_policy_local: false
     node_port:
       enabled: false
       port: 30096
-  metadata:
-    port: 8775
 
 bootstrap:
   enabled: false
+  ks_user: neutron
   script: |
-    neutron agent-list
+    openstack token issue
 
 dependencies:
-  db_init:
-    services:
-    - service: oslo_db
-      endpoint: internal
-  db_sync:
-    jobs:
-    - neutron-db-init
-    services:
-    - service: oslo_db
-      endpoint: internal
-  db_drop:
-    services:
-    - service: oslo_db
-      endpoint: internal
-  ks_user:
-    services:
-    - service: identity
-      endpoint: internal
-  ks_service:
-    services:
-    - service: identity
-      endpoint: internal
-  ks_endpoints:
-    jobs:
-    - neutron-ks-service
-    services:
-    - service: identity
-      endpoint: internal
-  server:
-    jobs:
-    - neutron-db-sync
-    - neutron-ks-user
-    - neutron-ks-endpoints
-    services:
-    - service: oslo_db
-      endpoint: internal
-    - service: oslo_messaging
-      endpoint: internal
-    - service: oslo_cache
-      endpoint: internal
-    - service: identity
-      endpoint: internal
-  dhcp:
-    services:
-    - service: oslo_messaging
-      endpoint: internal
-    - service: network
-      endpoint: internal
-    - service: compute
-      endpoint: internal
-    daemonset:
-    # this should be set to corresponding neutron L2 agent
-    - neutron-ovs-agent
-  metadata:
-    services:
-    - service: oslo_messaging
-      endpoint: internal
-    - service: network
-      endpoint: internal
-    - service: compute
-      endpoint: internal
-    - service: compute_metadata
-      endpoint: public
-    daemonset:
-    # this should be set to corresponding neutron L2 agent
-    - neutron-ovs-agent
-  ovs_agent:
-    services:
-    - service: oslo_messaging
-      endpoint: internal
-    - service: network
-      endpoint: internal
-    daemonset:
-    - openvswitch-vswitchd
-    - openvswitch-db
-  lb_agent:
-    services:
-    - service: oslo_messaging
-      endpoint: internal
-    - service: network
-      endpoint: internal
-  l3:
-    services:
-    - service: oslo_messaging
-      endpoint: internal
-    - service: network
-      endpoint: internal
-    - service: compute
-      endpoint: internal
-    daemonset:
-    # this should be set to corresponding neutron L2 agent
-    - neutron-ovs-agent
-  tests:
-    services:
-    - service: network
-      endpoint: internal
-    - service: compute
-      endpoint: internal
-  bootstrap:
-    services:
-    - service: network
-      endpoint: internal
-    - service: compute
-      endpoint: internal
+  dynamic:
+    targeted:
+      openvswitch:
+        dhcp:
+          pod:
+            - labels:
+                application: neutron
+                component: neutron-ovs-agent
+        l3:
+          pod:
+            - labels:
+                application: neutron
+                component: neutron-ovs-agent
+        metadata:
+          pod:
+            - labels:
+                application: neutron
+                component: neutron-ovs-agent
+      linuxbridge:
+        dhcp:
+          pod:
+            - labels:
+                application: neutron
+                component: neutron-lb-agent
+        l3:
+          pod:
+            - labels:
+                application: neutron
+                component: neutron-lb-agent
+        metadata:
+          pod:
+            - labels:
+                application: neutron
+                component: neutron-lb-agent
+        lb_agent:
+          pod: null
+      sriov:
+        dhcp:
+          pod:
+            - labels:
+                application: neutron
+                component: neutron-sriov-agent
+        l3:
+          pod:
+            - labels:
+                application: neutron
+                component: neutron-sriov-agent
+        metadata:
+          pod:
+            - labels:
+                application: neutron
+                component: neutron-sriov-agent
+  static:
+    bootstrap:
+      services:
+        - endpoint: internal
+          service: network
+        - endpoint: internal
+          service: compute
+    db_drop:
+      services:
+        - endpoint: internal
+          service: oslo_db
+    db_init:
+      services:
+        - endpoint: internal
+          service: oslo_db
+    db_sync:
+      jobs:
+        - neutron-db-init
+      services:
+        - endpoint: internal
+          service: oslo_db
+    dhcp:
+      pod: null
+      jobs:
+        - neutron-rabbit-init
+      services:
+        - endpoint: internal
+          service: oslo_messaging
+        - endpoint: internal
+          service: network
+        - endpoint: internal
+          service: compute
+    ks_endpoints:
+      jobs:
+        - neutron-ks-service
+      services:
+        - endpoint: internal
+          service: identity
+    ks_service:
+      services:
+        - endpoint: internal
+          service: identity
+    ks_user:
+      services:
+        - endpoint: internal
+          service: identity
+    rabbit_init:
+      services:
+      - service: oslo_messaging
+        endpoint: internal
+    l3:
+      pod: null
+      jobs:
+        - neutron-rabbit-init
+      services:
+        - endpoint: internal
+          service: oslo_messaging
+        - endpoint: internal
+          service: network
+        - endpoint: internal
+          service: compute
+    lb_agent:
+      pod: null
+      jobs:
+        - neutron-rabbit-init
+      services:
+        - endpoint: internal
+          service: oslo_messaging
+        - endpoint: internal
+          service: network
+    metadata:
+      pod: null
+      jobs:
+        - neutron-rabbit-init
+      services:
+        - endpoint: internal
+          service: oslo_messaging
+        - endpoint: internal
+          service: network
+        - endpoint: internal
+          service: compute
+        - endpoint: public
+          service: compute_metadata
+    ovs_agent:
+      jobs:
+        - neutron-rabbit-init
+      pod:
+        - labels:
+            application: openvswitch
+            component: openvswitch-vswitchd
+        - labels:
+            application: openvswitch
+            component: openvswitch-vswitchd-db
+      services:
+        - endpoint: internal
+          service: oslo_messaging
+        - endpoint: internal
+          service: network
+    server:
+      jobs:
+        - neutron-db-sync
+        - neutron-ks-user
+        - neutron-ks-endpoints
+        - neutron-rabbit-init
+      services:
+        - endpoint: internal
+          service: oslo_db
+        - endpoint: internal
+          service: oslo_messaging
+        - endpoint: internal
+          service: oslo_cache
+        - endpoint: internal
+          service: identity
+    tests:
+      services:
+        - endpoint: internal
+          service: network
+        - endpoint: internal
+          service: compute
 
 pod:
   user:
     neutron:
-      uid: 42435
+      uid: 42424
   affinity:
-      anti:
-        type:
-          default: preferredDuringSchedulingIgnoredDuringExecution
-        topologyKey:
-          default: kubernetes.io/hostname
+    anti:
+      type:
+        default: preferredDuringSchedulingIgnoredDuringExecution
+      topologyKey:
+        default: kubernetes.io/hostname
   mounts:
     neutron_server:
       init_container: null
@@ -248,6 +334,9 @@ pod:
     neutron_ovs_agent:
       init_container: null
       neutron_ovs_agent:
+    neutron_sriov_agent:
+      init_container: null
+      neutron_sriov_agent:
     neutron_tests:
       init_container: null
       neutron_tests:
@@ -287,6 +376,10 @@ pod:
           min_ready_seconds: 0
           max_unavailable: 1
         ovs_agent:
+          enabled: true
+          min_ready_seconds: 0
+          max_unavailable: 1
+        sriov_agent:
           enabled: true
           min_ready_seconds: 0
           max_unavailable: 1
@@ -341,6 +434,13 @@ pod:
         limits:
           memory: "1024Mi"
           cpu: "2000m"
+      sriov:
+        requests:
+          memory: "128Mi"
+          cpu: "100m"
+        limits:
+          memory: "1024Mi"
+          cpu: "2000m"
     server:
       requests:
         memory: "128Mi"
@@ -357,6 +457,13 @@ pod:
           memory: "1024Mi"
           cpu: "2000m"
       db_init:
+        requests:
+          memory: "128Mi"
+          cpu: "100m"
+        limits:
+          memory: "1024Mi"
+          cpu: "2000m"
+      rabbit_init:
         requests:
           memory: "128Mi"
           cpu: "100m"
@@ -417,9 +524,6 @@ conf:
             quotas:
               neutron:
                 network: -1
-            users:
-              tenants: 1
-              users_per_tenant: 1
           runner:
             concurrency: 1
             times: 1
@@ -438,9 +542,6 @@ conf:
               neutron:
                 network: -1
                 port: -1
-            users:
-              tenants: 1
-              users_per_tenant: 1
           runner:
             concurrency: 1
             times: 1
@@ -462,9 +563,6 @@ conf:
                 network: -1
                 router: -1
                 subnet: -1
-            users:
-              tenants: 1
-              users_per_tenant: 1
           runner:
             concurrency: 1
             times: 1
@@ -484,9 +582,6 @@ conf:
               neutron:
                 network: -1
                 subnet: -1
-            users:
-              tenants: 1
-              users_per_tenant: 1
           runner:
             concurrency: 1
             times: 1
@@ -508,9 +603,6 @@ conf:
                 network: -1
                 router: -1
                 subnet: -1
-            users:
-              tenants: 3
-              users_per_tenant: 3
           runner:
             concurrency: 1
             times: 1
@@ -530,9 +622,6 @@ conf:
               neutron:
                 network: -1
                 subnet: -1
-            users:
-              tenants: 1
-              users_per_tenant: 1
           runner:
             concurrency: 1
             times: 1
@@ -547,9 +636,6 @@ conf:
             quotas:
               neutron:
                 network: -1
-            users:
-              tenants: 1
-              users_per_tenant: 1
           runner:
             concurrency: 1
             times: 1
@@ -567,9 +653,6 @@ conf:
             quotas:
               neutron:
                 network: -1
-            users:
-              tenants: 1
-              users_per_tenant: 1
           runner:
             concurrency: 1
             times: 1
@@ -593,9 +676,6 @@ conf:
               neutron:
                 network: -1
                 port: -1
-            users:
-              tenants: 1
-              users_per_tenant: 1
           runner:
             concurrency: 1
             times: 1
@@ -620,9 +700,6 @@ conf:
                 network: -1
                 router: -1
                 subnet: -1
-            users:
-              tenants: 1
-              users_per_tenant: 1
           runner:
             concurrency: 1
             times: 1
@@ -645,9 +722,6 @@ conf:
               neutron:
                 network: -1
                 subnet: -1
-            users:
-              tenants: 1
-              users_per_tenant: 1
           runner:
             concurrency: 1
             times: 1
@@ -658,10 +732,6 @@ conf:
       NeutronNetworks.list_agents:
         - args:
             agent_args: {}
-          context:
-            users:
-              tenants: 1
-              users_per_tenant: 1
           runner:
             concurrency: 1
             times: 1
@@ -676,9 +746,6 @@ conf:
             quotas:
               neutron:
                 security_group: -1
-            users:
-              tenants: 1
-              users_per_tenant: 1
           runner:
             concurrency: 1
             times: 1
@@ -694,9 +761,6 @@ conf:
             quotas:
               neutron:
                 security_group: -1
-            users:
-              tenants: 1
-              users_per_tenant: 1
           runner:
             concurrency: 1
             times: 1
@@ -928,54 +992,386 @@ conf:
     get_subports: ''
     add_subports: rule:admin_or_owner
     remove_subports: rule:admin_or_owner
-  neutron_sudoers:
-    override:
-    append:
-  rootwrap:
-    override:
-    append:
+  neutron_sudoers: |
+    # This sudoers file supports rootwrap for both Kolla and LOCI Images.
+    Defaults !requiretty
+    Defaults secure_path="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/snap/bin:/var/lib/openstack/bin:/var/lib/kolla/venv/bin"
+    neutron ALL = (root) NOPASSWD: /var/lib/kolla/venv/bin/neutron-rootwrap /etc/neutron/rootwrap.conf *, /var/lib/openstack/bin/neutron-rootwrap /etc/neutron/rootwrap.conf *
+  rootwrap: |
+    # Configuration for neutron-rootwrap
+    # This file should be owned by (and only-writeable by) the root user
+
+    [DEFAULT]
+    # List of directories to load filter definitions from (separated by ',').
+    # These directories MUST all be only writeable by root !
+    filters_path=/etc/neutron/rootwrap.d,/usr/share/neutron/rootwrap
+
+    # List of directories to search executables in, in case filters do not
+    # explicitely specify a full path (separated by ',')
+    # If not specified, defaults to system PATH environment variable.
+    # These directories MUST all be only writeable by root !
+    exec_dirs=/sbin,/usr/sbin,/bin,/usr/bin,/usr/local/bin,/usr/local/sbin,/var/lib/openstack/bin,/var/lib/kolla/venv/bin
+
+    # Enable logging to syslog
+    # Default value is False
+    use_syslog=False
+
+    # Which syslog facility to use.
+    # Valid values include auth, authpriv, syslog, local0, local1...
+    # Default value is 'syslog'
+    syslog_log_facility=syslog
+
+    # Which messages to log.
+    # INFO means log all usage
+    # ERROR means only log unsuccessful attempts
+    syslog_log_level=ERROR
+
+    [xenapi]
+    # XenAPI configuration is only required by the L2 agent if it is to
+    # target a XenServer/XCP compute host's dom0.
+    xenapi_connection_url=<None>
+    xenapi_connection_username=root
+    xenapi_connection_password=<None>
   rootwrap_filters:
     debug:
-      override:
-      append:
+      pods:
+        - dhcp_agent
+        - l3_agent
+        - lb_agent
+        - metadata_agent
+        - ovs_agent
+        - sriov_agent
+      content: |
+        # neutron-rootwrap command filters for nodes on which neutron is
+        # expected to control network
+        #
+        # This file should be owned by (and only-writeable by) the root user
+
+        # format seems to be
+        # cmd-name: filter-name, raw-command, user, args
+
+        [Filters]
+
+        # This is needed because we should ping
+        # from inside a namespace which requires root
+        # _alt variants allow to match -c and -w in any order
+        #   (used by NeutronDebugAgent.ping_all)
+        ping: RegExpFilter, ping, root, ping, -w, \d+, -c, \d+, [0-9\.]+
+        ping_alt: RegExpFilter, ping, root, ping, -c, \d+, -w, \d+, [0-9\.]+
+        ping6: RegExpFilter, ping6, root, ping6, -w, \d+, -c, \d+, [0-9A-Fa-f:]+
+        ping6_alt: RegExpFilter, ping6, root, ping6, -c, \d+, -w, \d+, [0-9A-Fa-f:]+
     dibbler:
-      override:
-      append:
+      pods:
+        - dhcp_agent
+        - l3_agent
+        - lb_agent
+        - metadata_agent
+        - ovs_agent
+        - sriov_agent
+      content: |
+        # neutron-rootwrap command filters for nodes on which neutron is
+        # expected to control network
+        #
+        # This file should be owned by (and only-writeable by) the root user
+
+        # format seems to be
+        # cmd-name: filter-name, raw-command, user, args
+
+        [Filters]
+
+        # Filters for the dibbler-based reference implementation of the pluggable
+        # Prefix Delegation driver. Other implementations using an alternative agent
+        # should include a similar filter in this folder.
+
+        # prefix_delegation_agent
+        dibbler-client: CommandFilter, dibbler-client, root
     ipset_firewall:
-      override:
-      append:
+      pods:
+        - dhcp_agent
+        - l3_agent
+        - lb_agent
+        - metadata_agent
+        - ovs_agent
+        - sriov_agent
+      content: |
+        # neutron-rootwrap command filters for nodes on which neutron is
+        # expected to control network
+        #
+        # This file should be owned by (and only-writeable by) the root user
+
+        # format seems to be
+        # cmd-name: filter-name, raw-command, user, args
+
+        [Filters]
+        # neutron/agent/linux/iptables_firewall.py
+        #   "ipset", "-A", ...
+        ipset: CommandFilter, ipset, root
     l3:
-      override:
-      append:
+      pods:
+        - dhcp_agent
+        - l3_agent
+        - lb_agent
+        - metadata_agent
+        - ovs_agent
+        - sriov_agent
+      content: |
+        # neutron-rootwrap command filters for nodes on which neutron is
+        # expected to control network
+        #
+        # This file should be owned by (and only-writeable by) the root user
+
+        # format seems to be
+        # cmd-name: filter-name, raw-command, user, args
+
+        [Filters]
+
+        # arping
+        arping: CommandFilter, arping, root
+
+        # l3_agent
+        sysctl: CommandFilter, sysctl, root
+        route: CommandFilter, route, root
+        radvd: CommandFilter, radvd, root
+
+        # metadata proxy
+        metadata_proxy: CommandFilter, neutron-ns-metadata-proxy, root
+        # RHEL invocation of the metadata proxy will report /usr/bin/python
+        kill_metadata: KillFilter, root, python, -15, -9
+        kill_metadata7: KillFilter, root, python2.7, -15, -9
+        kill_radvd_usr: KillFilter, root, /usr/sbin/radvd, -15, -9, -HUP
+        kill_radvd: KillFilter, root, /sbin/radvd, -15, -9, -HUP
+
+        # ip_lib
+        ip: IpFilter, ip, root
+        find: RegExpFilter, find, root, find, /sys/class/net, -maxdepth, 1, -type, l, -printf, %.*
+        ip_exec: IpNetnsExecFilter, ip, root
+
+        # For ip monitor
+        kill_ip_monitor: KillFilter, root, ip, -9
+
+        # ovs_lib (if OVSInterfaceDriver is used)
+        ovs-vsctl: CommandFilter, ovs-vsctl, root
+
+        # iptables_manager
+        iptables-save: CommandFilter, iptables-save, root
+        iptables-restore: CommandFilter, iptables-restore, root
+        ip6tables-save: CommandFilter, ip6tables-save, root
+        ip6tables-restore: CommandFilter, ip6tables-restore, root
+
+        # Keepalived
+        keepalived: CommandFilter, keepalived, root
+        kill_keepalived: KillFilter, root, /usr/sbin/keepalived, -HUP, -15, -9
+
+        # l3 agent to delete floatingip's conntrack state
+        conntrack: CommandFilter, conntrack, root
+
+        # keepalived state change monitor
+        keepalived_state_change: CommandFilter, neutron-keepalived-state-change, root
     netns_cleanup:
-      override:
-      append:
+      pods:
+        - dhcp_agent
+        - l3_agent
+        - lb_agent
+        - metadata_agent
+        - ovs_agent
+        - sriov_agent
+      content: |
+        # neutron-rootwrap command filters for nodes on which neutron is
+        # expected to control network
+        #
+        # This file should be owned by (and only-writeable by) the root user
+
+        # format seems to be
+        # cmd-name: filter-name, raw-command, user, args
+
+        [Filters]
+
+        # netns-cleanup
+        netstat: CommandFilter, netstat, root
     dhcp:
-      override:
-      append:
+      pods:
+        - dhcp_agent
+        - l3_agent
+        - lb_agent
+        - metadata_agent
+        - ovs_agent
+        - sriov_agent
+      content: |
+        # neutron-rootwrap command filters for nodes on which neutron is
+        # expected to control network
+        #
+        # This file should be owned by (and only-writeable by) the root user
+
+        # format seems to be
+        # cmd-name: filter-name, raw-command, user, args
+
+        [Filters]
+
+        # dhcp-agent
+        dnsmasq: CommandFilter, dnsmasq, root
+        # dhcp-agent uses kill as well, that's handled by the generic KillFilter
+        # it looks like these are the only signals needed, per
+        # neutron/agent/linux/dhcp.py
+        kill_dnsmasq: KillFilter, root, /sbin/dnsmasq, -9, -HUP, -15
+        kill_dnsmasq_usr: KillFilter, root, /usr/sbin/dnsmasq, -9, -HUP, -15
+
+        ovs-vsctl: CommandFilter, ovs-vsctl, root
+        ivs-ctl: CommandFilter, ivs-ctl, root
+        mm-ctl: CommandFilter, mm-ctl, root
+        dhcp_release: CommandFilter, dhcp_release, root
+        dhcp_release6: CommandFilter, dhcp_release6, root
+
+        # metadata proxy
+        metadata_proxy: CommandFilter, neutron-ns-metadata-proxy, root
+        # RHEL invocation of the metadata proxy will report /usr/bin/python
+        kill_metadata: KillFilter, root, python, -9
+        kill_metadata7: KillFilter, root, python2.7, -9
+
+        # ip_lib
+        ip: IpFilter, ip, root
+        find: RegExpFilter, find, root, find, /sys/class/net, -maxdepth, 1, -type, l, -printf, %.*
+        ip_exec: IpNetnsExecFilter, ip, root
     ebtables:
-      override:
-      append:
+      pods:
+        - dhcp_agent
+        - l3_agent
+        - lb_agent
+        - metadata_agent
+        - ovs_agent
+        - sriov_agent
+      content: |
+        # neutron-rootwrap command filters for nodes on which neutron is
+        # expected to control network
+        #
+        # This file should be owned by (and only-writeable by) the root user
+
+        # format seems to be
+        # cmd-name: filter-name, raw-command, user, args
+
+        [Filters]
+
+        ebtables: CommandFilter, ebtables, root
     iptables_firewall:
-      override:
-      append:
+      pods:
+        - dhcp_agent
+        - l3_agent
+        - lb_agent
+        - metadata_agent
+        - ovs_agent
+        - sriov_agent
+      content: |
+        # neutron-rootwrap command filters for nodes on which neutron is
+        # expected to control network
+        #
+        # This file should be owned by (and only-writeable by) the root user
+
+        # format seems to be
+        # cmd-name: filter-name, raw-command, user, args
+
+        [Filters]
+
+        # neutron/agent/linux/iptables_firewall.py
+        #   "iptables-save", ...
+        iptables-save: CommandFilter, iptables-save, root
+        iptables-restore: CommandFilter, iptables-restore, root
+        ip6tables-save: CommandFilter, ip6tables-save, root
+        ip6tables-restore: CommandFilter, ip6tables-restore, root
+
+        # neutron/agent/linux/iptables_firewall.py
+        #   "iptables", "-A", ...
+        iptables: CommandFilter, iptables, root
+        ip6tables: CommandFilter, ip6tables, root
+
+        # neutron/agent/linux/iptables_firewall.py
+        sysctl: CommandFilter, sysctl, root
+
+        # neutron/agent/linux/ip_conntrack.py
+        conntrack: CommandFilter, conntrack, root
     linuxbridge_plugin:
-      override:
-      append:
+      pods:
+        - dhcp_agent
+        - l3_agent
+        - lb_agent
+        - metadata_agent
+        - ovs_agent
+        - sriov_agent
+      content: |
+        # neutron-rootwrap command filters for nodes on which neutron is
+        # expected to control network
+        #
+        # This file should be owned by (and only-writeable by) the root user
+
+        # format seems to be
+        # cmd-name: filter-name, raw-command, user, args
+
+        [Filters]
+
+        # linuxbridge-agent
+        # unclear whether both variants are necessary, but I'm transliterating
+        # from the old mechanism
+        brctl: CommandFilter, brctl, root
+        bridge: CommandFilter, bridge, root
+
+        # ip_lib
+        ip: IpFilter, ip, root
+        find: RegExpFilter, find, root, find, /sys/class/net, -maxdepth, 1, -type, l, -printf, %.*
+        ip_exec: IpNetnsExecFilter, ip, root
+
+        # tc commands needed for QoS support
+        tc_replace_tbf: RegExpFilter, tc, root, tc, qdisc, replace, dev, .+, root, tbf, rate, .+, latency, .+, burst, .+
+        tc_add_ingress: RegExpFilter, tc, root, tc, qdisc, add, dev, .+, ingress, handle, .+
+        tc_delete: RegExpFilter, tc, root, tc, qdisc, del, dev, .+, .+
+        tc_show_qdisc: RegExpFilter, tc, root, tc, qdisc, show, dev, .+
+        tc_show_filters: RegExpFilter, tc, root, tc, filter, show, dev, .+, parent, .+
+        tc_add_filter: RegExpFilter, tc, root, tc, filter, add, dev, .+, parent, .+, protocol, all, prio, .+, basic, police, rate, .+, burst, .+, mtu, .+, drop
     openvswitch_plugin:
-      override:
-      append:
+      pods:
+        - dhcp_agent
+        - l3_agent
+        - lb_agent
+        - metadata_agent
+        - ovs_agent
+        - sriov_agent
+      content: |
+        # neutron-rootwrap command filters for nodes on which neutron is
+        # expected to control network
+        #
+        # This file should be owned by (and only-writeable by) the root user
+
+        # format seems to be
+        # cmd-name: filter-name, raw-command, user, args
+
+        [Filters]
+
+        # openvswitch-agent
+        # unclear whether both variants are necessary, but I'm transliterating
+        # from the old mechanism
+        ovs-vsctl: CommandFilter, ovs-vsctl, root
+        # NOTE(yamamoto): of_interface=native doesn't use ovs-ofctl
+        ovs-ofctl: CommandFilter, ovs-ofctl, root
+        kill_ovsdb_client: KillFilter, root, /usr/bin/ovsdb-client, -9
+        ovsdb-client: CommandFilter, ovsdb-client, root
+        xe: CommandFilter, xe, root
+
+        # ip_lib
+        ip: IpFilter, ip, root
+        find: RegExpFilter, find, root, find, /sys/class/net, -maxdepth, 1, -type, l, -printf, %.*
+        ip_exec: IpNetnsExecFilter, ip, root
   neutron:
     DEFAULT:
+      #NOTE(portdirect): the bind port should not be defined, and is manipulated
+      # via the endpoints section.
+      bind_port: null
       default_availability_zones: nova
-      api_workers: 4
+      api_workers: 1
+      rpc_workers: 1
       allow_overlapping_ips: True
       # core_plugin can be: ml2, calico
       core_plugin: ml2
       # service_plugin can be: router, odl-router, empty for calico,
       # networking_ovn.l3.l3_ovn.OVNL3RouterPlugin for OVN
       service_plugins: router,neutron_lbaas.services.loadbalancer.plugin.LoadBalancerPluginv2
-      metadata_proxy_socket: /var/lib/neutron/openstack-helm/metadata_proxy
+      service_plugins: router
       allow_automatic_l3agent_failover: True
       l3_ha: True
       min_l3_agents_per_router: 2
@@ -984,14 +1380,15 @@ conf:
       dhcp_agents_per_network: 3
       network_auto_schedule: True
       router_auto_schedule: True
-      # we can define here, which driver we are using: openvswitch or linuxbridge
-      interface_driver: openvswitch
+      #(NOTE)portdirect: if unset this is populated dyanmicly from the value in
+      # 'network.backend' to sane defaults.
+      interface_driver: null
     oslo_concurrency:
       lock_path: /var/lib/neutron/tmp
     database:
       max_retries: -1
     agent:
-      root_helper: sudo /var/lib/kolla/venv/bin/neutron-rootwrap /etc/neutron/rootwrap.conf
+      root_helper: sudo /var/lib/openstack/bin/neutron-rootwrap /etc/neutron/rootwrap.conf
     oslo_messaging_notifications:
       driver: messagingv2
     nova:
@@ -1007,9 +1404,9 @@ conf:
     ml2_conf:
       ml2:
         extension_drivers: port_security
-        # mechnism_drivers can be: openvswitch, linuxbridge,
-        # opendaylight, ovn
-        mechanism_drivers: openvswitch,l2population
+        #(NOTE)portdirect: if unset this is populated dyanmicly from the value
+        # in 'network.backend' to sane defaults.
+        mechanism_drivers: null
         type_drivers: flat,vlan,vxlan
         tenant_network_types: vxlan
       ml2_type_vxlan:
@@ -1047,23 +1444,25 @@ conf:
         l2_population: True
         arp_responder: True
     macvtap_agent: null
-    sriov_agent: null
+    sriov_agent:
+      securitygroup:
+        firewall_driver: neutron.agent.firewall.NoopFirewallDriver
+      sriov_nic:
+        physical_device_mappings: physnet2:enp3s0f1
+        exclude_devices: null
   dhcp_agent:
     DEFAULT:
-      # we can define here, which driver we are using:
-      # openvswitch or linuxbridge
-      interface_driver: openvswitch
+      #(NOTE)portdirect: if unset this is populated dyanmicly from the value in
+      # 'network.backend' to sane defaults.
+      interface_driver: null
       dnsmasq_config_file: /etc/neutron/dnsmasq.conf
-      enable_isolated_metadata: True
       force_metadata: True
   l3_agent:
     DEFAULT:
-      # we can define here, which driver we are using:
-      # openvswitch or linuxbridge
-      interface_driver: openvswitch
+      #(NOTE)portdirect: if unset this is populated dyanmicly from the value in
+      # 'network.backend' to sane defaults.
+      interface_driver: null
       agent_mode: legacy
-      enable_metadata_proxy: True
-      enable_isolated_metadata: True
   lbaas_agent:
     DEFAULT:
       interface_driver: openvswitch
@@ -1075,6 +1474,9 @@ conf:
       nova_metadata_ip: metadata
       nova_metadata_port: 80
       nova_metadata_protocol: http
+      # we cannot change the proxy socket path as it is declared
+      # as a hostPath volume from agent daemonsets
+      metadata_proxy_socket: /var/lib/neutron/openstack-helm/metadata_proxy
       metadata_proxy_shared_secret: "password"
     cache:
       enabled: true
@@ -1084,55 +1486,71 @@ conf:
 secrets:
   identity:
     admin: neutron-keystone-admin
-    user: neutron-keystone-user
+    neutron: neutron-keystone-user
+    test: neutron-keystone-test
   oslo_db:
     admin: neutron-db-admin
-    user: neutron-db-user
+    neutron: neutron-db-user
+  oslo_messaging:
+    admin: neutron-rabbitmq-admin
+    neutron: neutron-rabbitmq-user
 
-# typically overriden by environmental
+# typically overridden by environmental
 # values, but should include all endpoints
 # required by this chart
 endpoints:
   cluster_domain_suffix: cluster.local
   oslo_db:
-     auth:
-       admin:
-         username: root
-         password: password
-       user:
-         username: neutron
-         password: password
-     hosts:
-       default: mariadb
-     host_fqdn_override:
-       default: null
-     path: /neutron
-     scheme: mysql+pymysql
-     port:
-       mysql:
-         default: 3306
+    auth:
+      admin:
+        username: root
+        password: password
+      neutron:
+        username: neutron
+        password: password
+    hosts:
+      default: mariadb
+    host_fqdn_override:
+      default: null
+    path: /neutron
+    scheme: mysql+pymysql
+    port:
+      mysql:
+        default: 3306
   oslo_messaging:
-     auth:
-       user:
-         username: rabbitmq
-         password: password
-     hosts:
-       default: rabbitmq
-     host_fqdn_override:
-       default: null
-     path: /
-     scheme: rabbit
-     port:
-       amqp:
-         default: 5672
+    auth:
+      admin:
+        username: rabbitmq
+        password: password
+      neutron:
+        username: neutron
+        password: password
+    hosts:
+      default: rabbitmq
+    host_fqdn_override:
+      default: null
+    path: /
+    scheme: rabbit
+    port:
+      amqp:
+        default: 5672
+      http:
+        default: 15672
   oslo_cache:
-     hosts:
-       default: memcached
-     host_fqdn_override:
-       default: null
-     port:
-       memcache:
-         default: 11211
+    auth:
+      # NOTE(portdirect): this is used to define the value for keystone
+      # authtoken cache encryption key, if not set it will be populated
+      # automatically with a random value, but to take advantage of
+      # this feature all services should be set to use the same key,
+      # and memcache service.
+      memcache_secret_key: null
+    hosts:
+      default: memcached
+    host_fqdn_override:
+      default: null
+    port:
+      memcache:
+        default: 11211
   compute:
     name: nova
     hosts:
@@ -1141,7 +1559,7 @@ endpoints:
     host_fqdn_override:
       default: null
     path:
-      default: "/v2/%(tenant_id)s"
+      default: "/v2.1/%(tenant_id)s"
     scheme:
       default: 'http'
     port:
@@ -1175,7 +1593,7 @@ endpoints:
         project_name: admin
         user_domain_name: default
         project_domain_name: default
-      user:
+      neutron:
         role: admin
         region_name: RegionOne
         username: neutron
@@ -1190,6 +1608,14 @@ endpoints:
         user_domain_name: default
         username: nova
         password: password
+      test:
+        role: admin
+        region_name: RegionOne
+        username: test
+        password: password
+        project_name: test
+        user_domain_name: default
+        project_domain_name: default
     hosts:
       default: keystone-api
       public: keystone
@@ -1225,10 +1651,11 @@ manifests:
   configmap_etc: true
   daemonset_dhcp_agent: true
   daemonset_l3_agent: true
-  daemonset_lb_agent: false
+  daemonset_lb_agent: true
   daemonset_lbaas_agent: true
   daemonset_metadata_agent: true
   daemonset_ovs_agent: true
+  daemonset_sriov_agent: true
   deployment_server: true
   ingress_server: true
   job_bootstrap: true
@@ -1238,9 +1665,11 @@ manifests:
   job_ks_endpoints: true
   job_ks_service: true
   job_ks_user: true
+  job_rabbit_init: true
   pdb_server: true
   pod_rally_test: true
   secret_db: true
   secret_keystone: true
+  secret_rabbitmq: true
   service_ingress_server: true
   service_server: true

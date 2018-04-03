@@ -16,29 +16,29 @@ limitations under the License.
 
 {{- if .Values.manifests.statefulset }}
 {{- $envAll := . }}
-{{- $dependencies := .Values.dependencies.rabbitmq }}
+{{- $dependencies := .Values.dependencies.static.rabbitmq }}
 
-{{- $serviceAccountName := "rabbitmq" }}
-{{ tuple $envAll $dependencies $serviceAccountName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
+{{- $rcControllerName := printf "%s-%s" $envAll.Release.Name "rabbitmq"  }}
+{{ tuple $envAll $dependencies $rcControllerName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1beta1
 kind: RoleBinding
 metadata:
-  name: {{ $serviceAccountName }}
+  name: {{ $rcControllerName | quote }}
   namespace: {{ .Release.Namespace }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
-  name: {{ $serviceAccountName }}
+  name: {{ $rcControllerName | quote }}
 subjects:
   - kind: ServiceAccount
-    name: {{ $serviceAccountName }}
+    name: {{ $rcControllerName | quote }}
     namespace: {{ .Release.Namespace }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1beta1
 kind: Role
 metadata:
-  name: {{ $serviceAccountName }}
+  name: {{ $rcControllerName | quote }}
   namespace: {{ .Release.Namespace }}
 rules:
   - apiGroups:
@@ -56,7 +56,7 @@ rules:
 apiVersion: apps/v1beta1
 kind: StatefulSet
 metadata:
-  name: rabbitmq
+  name: {{ $rcControllerName | quote }}
 spec:
   serviceName: {{ tuple "oslo_messaging" "internal" . | include "helm-toolkit.endpoints.hostname_short_endpoint_lookup" }}
   replicas: {{ .Values.pod.replicas.server }}
@@ -68,13 +68,29 @@ spec:
         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
     spec:
-      serviceAccountName: {{ $serviceAccountName }}
+      serviceAccountName: {{ $rcControllerName | quote }}
       affinity:
 {{ tuple $envAll "rabbitmq" "server" | include "helm-toolkit.snippets.kubernetes_pod_anti_affinity" | indent 8 }}
       nodeSelector:
-        {{ .Values.labels.node_selector_key }}: {{ .Values.labels.node_selector_value }}
+        {{ .Values.labels.server.node_selector_key }}: {{ .Values.labels.server.node_selector_value }}
       initContainers:
-{{ tuple $envAll $dependencies list | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 9 }}
+{{ tuple $envAll $dependencies list | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
+{{- if .Values.volume.chown_on_start }}
+        - name: rabbitmq-perms
+          image: {{ .Values.images.tags.rabbitmq }}
+          imagePullPolicy: {{ .Values.images.pull_policy }}
+          securityContext:
+            runAsUser: 0
+{{ tuple $envAll $envAll.Values.pod.resources.server | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
+          command:
+            - chown
+            - -R
+            - "rabbitmq:"
+            - /var/lib/rabbitmq
+          volumeMounts:
+            - name: rabbitmq-data
+              mountPath: /var/lib/rabbitmq
+{{- end }}
       containers:
         - name: rabbitmq
           image: {{ .Values.images.tags.rabbitmq }}
@@ -114,7 +130,7 @@ spec:
               command:
               - /tmp/rabbitmq-liveness.sh
           volumeMounts:
-            - name: rabbitmq-emptydir
+            - name: rabbitmq-data
               mountPath: /var/lib/rabbitmq
             - name: rabbitmq-bin
               mountPath: /tmp
@@ -127,14 +143,27 @@ spec:
               subPath: rabbitmq.conf
               readOnly: true
       volumes:
-        - name: rabbitmq-emptydir
-          emptyDir: {}
         - name: rabbitmq-bin
           configMap:
-            name: rabbitmq-bin
+            name: {{ printf "%s-%s" $envAll.Release.Name "rabbitmq-bin" | quote }}
             defaultMode: 0555
         - name: rabbitmq-etc
           configMap:
-            name: rabbitmq-etc
+            name: {{ printf "%s-%s" $envAll.Release.Name "rabbitmq-etc" | quote }}
             defaultMode: 0444
+        {{- if not .Values.volume.enabled }}
+        - name: rabbitmq-data
+          emptyDir: {}
+        {{- end }}
+{{- if .Values.volume.enabled }}
+  volumeClaimTemplates:
+    - metadata:
+        name: rabbitmq-data
+      spec:
+        accessModes: [ "ReadWriteOnce" ]
+        resources:
+          requests:
+            storage: {{ .Values.volume.size }}
+        storageClassName: {{ .Values.volume.class_name }}
+{{- end }}
 {{ end }}

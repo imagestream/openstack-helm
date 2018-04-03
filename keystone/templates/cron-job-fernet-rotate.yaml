@@ -15,9 +15,9 @@ limitations under the License.
 */}}
 
 {{- if .Values.manifests.cron_fernet_rotate }}
-{{- if and (eq .Values.conf.keystone.token.provider "fernet") (.Capabilities.APIVersions.Has "batch/v2alpha1") }}
+{{- if eq .Values.conf.keystone.token.provider "fernet" }}
 {{- $envAll := . }}
-{{- $dependencies := .Values.dependencies.fernet_rotate }}
+{{- $dependencies := .Values.dependencies.static.fernet_rotate }}
 
 {{- $mounts_keystone_fernet_rotate := .Values.pod.mounts.keystone_fernet_rotate.keystone_fernet_rotate }}
 {{- $mounts_keystone_fernet_rotate_init := .Values.pod.mounts.keystone_fernet_rotate.init_container }}
@@ -53,12 +53,14 @@ subjects:
     name: {{ $serviceAccountName }}
     namespace: {{ $envAll.Release.Namespace }}
 ---
-apiVersion: batch/v2alpha1
+apiVersion: batch/v1beta1
 kind: CronJob
 metadata:
   name: keystone-fernet-rotate
 spec:
   schedule: {{ .Values.jobs.fernet_rotate.cron | quote }}
+  successfulJobsHistoryLimit: {{ .Values.jobs.fernet_rotate.history.success }}
+  failedJobsHistoryLimit: {{ .Values.jobs.fernet_rotate.history.failed }}
   concurrencyPolicy: Forbid
   jobTemplate:
     metadata:
@@ -72,7 +74,7 @@ spec:
 {{ tuple $envAll $dependencies $mounts_keystone_fernet_rotate_init | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 12 }}
           restartPolicy: OnFailure
           nodeSelector:
-            {{ .Values.labels.node_selector_key }}: {{ .Values.labels.node_selector_value }}
+            {{ .Values.labels.job.node_selector_key }}: {{ .Values.labels.job.node_selector_value }}
           containers:
             - name: keystone-fernet-rotate
               image: {{ .Values.images.tags.keystone_fernet_rotate }}

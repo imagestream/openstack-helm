@@ -16,7 +16,7 @@ limitations under the License.
 
 {{- if .Values.manifests.pod_gnocchi_test }}
 {{- $envAll := . }}
-{{- $dependencies := .Values.dependencies.tests }}
+{{- $dependencies := .Values.dependencies.static.tests }}
 
 {{- $mounts_gnocchi_tests := .Values.pod.mounts.gnocchi_tests.gnocchi_tests }}
 {{- $mounts_gnocchi_tests_init := .Values.pod.mounts.gnocchi_tests.init_container }}
@@ -31,6 +31,8 @@ metadata:
   annotations:
     "helm.sh/hook": test-success
 spec:
+  nodeSelector:
+    {{ .Values.labels.test.node_selector_key }}: {{ .Values.labels.test.node_selector_value }}
   serviceAccountName: {{ $serviceAccountName }}
   restartPolicy: Never
   initContainers:

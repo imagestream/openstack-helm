@@ -14,10 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */}}
 
-{{- if .Values.manifests.job_namespace_client_key }}
+{{- if and .Values.manifests.job_namespace_client_key .Values.deployment.client_secrets }}
 {{- $envAll := . }}
-{{- if .Values.deployment.client_secrets }}
-{{- $dependencies := .Values.dependencies.namespace_client_key_generator }}
+{{- $dependencies := .Values.dependencies.static.namespace_client_key_generator }}
 
 {{- $randStringSuffix := randAlphaNum 5 | lower }}
 
@@ -37,6 +36,7 @@ rules:
       - get
       - create
       - update
+      - patch
 ---
 apiVersion: rbac.authorization.k8s.io/v1beta1
 kind: RoleBinding
@@ -92,7 +92,7 @@ spec:
       serviceAccountName: {{ $serviceAccountName }}
       restartPolicy: OnFailure
       nodeSelector:
-        {{ $envAll.Values.labels.jobs.node_selector_key }}: {{ $envAll.Values.labels.jobs.node_selector_value }}
+        {{ $envAll.Values.labels.job.node_selector_key }}: {{ $envAll.Values.labels.job.node_selector_value }}
       initContainers:
 {{ tuple $envAll $dependencies list | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
       containers:
@@ -112,16 +112,15 @@ spec:
             - name: PVC_CEPH_RBD_STORAGECLASS_DEPLOYED_NAMESPACE
               value: {{ .Values.storageclass.rbd.admin_secret_namespace }}
           command:
-            - /opt/ceph/ceph-namespace-client-key.sh
+            - /tmp/provisioner-rbd-namespace-client-key-manager.sh
           volumeMounts:
             - name: ceph-bin
-              mountPath: /opt/ceph/ceph-namespace-client-key.sh
-              subPath: ceph-namespace-client-key.sh
+              mountPath: /tmp/provisioner-rbd-namespace-client-key-manager.sh
+              subPath: provisioner-rbd-namespace-client-key-manager.sh
               readOnly: true
       volumes:
         - name: ceph-bin
           configMap:
             name: ceph-bin-clients
             defaultMode: 0555
-{{- end }}
 {{- end }}

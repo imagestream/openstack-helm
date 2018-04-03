@@ -14,12 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */}}
 
-{{- if .Values.manifests.deployment_cephfs_provisioner }}
+{{- if and .Values.manifests.deployment_cephfs_provisioner .Values.deployment.cephfs_provisioner  }}
 {{- $envAll := . }}
-{{- if .Values.deployment.cephfs_provisioner }}
-{{- $dependencies := .Values.dependencies.cephfs_provisioner }}
+{{- $dependencies := .Values.dependencies.static.cephfs_provisioner }}
 
-{{- $serviceAccountName := "ceph-cephfs-provisioner"}}
+{{- $serviceAccountName := printf "%s-%s" .Release.Name "ceph-cephfs-provisioner" }}
 {{ tuple $envAll $dependencies $serviceAccountName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
 ---
 kind: ClusterRole
@@ -145,6 +144,8 @@ spec:
       serviceAccountName: {{ $serviceAccountName }}
       affinity:
 {{ tuple $envAll "cephfs" "provisioner" | include "helm-toolkit.snippets.kubernetes_pod_anti_affinity" | indent 8 }}
+      nodeSelector:
+        {{ .Values.labels.provisioner.node_selector_key }}: {{ .Values.labels.provisioner.node_selector_value }}
       initContainers:
 {{ tuple $envAll $dependencies list | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
       containers:
@@ -160,16 +161,15 @@ spec:
                 fieldRef:
                   fieldPath: metadata.name
           command:
-            - /tmp/cephfs-provisioner.sh
+            - /tmp/provisioner-cephfs-start.sh
           volumeMounts:
             - name: ceph-bin
-              mountPath: /tmp/cephfs-provisioner.sh
-              subPath: cephfs-provisioner.sh
+              mountPath: /tmp/provisioner-cephfs-start.sh
+              subPath: provisioner-cephfs-start.sh
               readOnly: true
       volumes:
         - name: ceph-bin
           configMap:
             name: ceph-bin
             defaultMode: 0555
-{{- end }}
 {{- end }}

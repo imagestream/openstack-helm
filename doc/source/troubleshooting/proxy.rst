@@ -9,16 +9,21 @@ internet.
 Proxy Environment Variables
 ===========================
 
-Ensure the following proxy environment variables are defined:
+Ensure the following proxy environment variables are defined either through
+an rc file or through modifying ``/etc/environment``.
 
 .. code-block:: shell
 
-  export http_proxy="http://username:passwrd@host:port"
-  export HTTP_PROXY="http://username:passwrd@host:port"
-  export https_proxy="https://username:passwrd@host:port"
-  export HTTPS_PROXY="https://username:passwrd@host:port"
-  export no_proxy="127.0.0.1,localhost"
-  export NO_PROXY="127.0.0.1,localhost"
+  export http_proxy="http://username:password@host:port"
+  export HTTP_PROXY="http://username:password@host:port"
+  export https_proxy="https://username:password@host:port"
+  export HTTPS_PROXY="https://username:password@host:port"
+  export no_proxy="127.0.0.1,localhost,.svc.cluster.local"
+  export NO_PROXY="127.0.0.1,localhost,.svc.cluster.local"
+
+Note the ``.svc.cluster.local`` is needed to allow the OpenStack client
+to connect without routing the connection to the proxy. Please update to the
+appropriate domain name if you have a different configuration.
 
 External DNS
 ============

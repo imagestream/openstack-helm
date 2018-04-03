@@ -16,7 +16,7 @@ limitations under the License.
 
 {{- if .Values.manifests.job_backup_storage_init }}
 {{- $envAll := . }}
-{{- $dependencies := .Values.dependencies.backup_storage_init }}
+{{- $dependencies := .Values.dependencies.static.backup_storage_init }}
 
 {{- $serviceAccountName := "cinder-backup-storage-init" }}
 {{ tuple $envAll $dependencies $serviceAccountName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
@@ -34,6 +34,7 @@ rules:
       - get
       - create
       - update
+      - patch
 ---
 apiVersion: rbac.authorization.k8s.io/v1beta1
 kind: RoleBinding
@@ -61,7 +62,7 @@ spec:
       serviceAccountName: {{ $serviceAccountName }}
       restartPolicy: OnFailure
       nodeSelector:
-        {{ .Values.labels.node_selector_key }}: {{ .Values.labels.node_selector_value }}
+        {{ .Values.labels.job.node_selector_key }}: {{ .Values.labels.job.node_selector_value }}
       initContainers:
 {{ tuple $envAll $dependencies list | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
         {{- if eq .Values.conf.cinder.DEFAULT.backup_driver "cinder.backup.drivers.ceph" }}
@@ -71,16 +72,13 @@ spec:
           securityContext:
             runAsUser: 0
           command:
-            - /tmp/ceph-keyring.sh
-          env:
-            - name: RBD_USER
-              value: "admin"
+            - /tmp/ceph-admin-keyring.sh
           volumeMounts:
             - name: etcceph
               mountPath: /etc/ceph
             - name: cinder-bin
-              mountPath: /tmp/ceph-keyring.sh
-              subPath: ceph-keyring.sh
+              mountPath: /tmp/ceph-admin-keyring.sh
+              subPath: ceph-admin-keyring.sh
               readOnly: true
             - name: ceph-keyring
               mountPath: /tmp/client-keyring
@@ -104,8 +102,12 @@ spec:
               value: {{ .Values.conf.cinder.DEFAULT.backup_ceph_pool | quote }}
             - name: RBD_POOL_USER
               value: {{ .Values.conf.cinder.DEFAULT.backup_ceph_user | quote }}
+            - name: RBD_POOL_CRUSH_RULE
+              value: {{ .Values.conf.ceph.pools.backup.crush_rule | quote }}
+            - name: RBD_POOL_REPLICATION
+              value: {{ .Values.conf.ceph.pools.backup.replication | quote }}
             - name: RBD_POOL_CHUNK_SIZE
-              value: "8"
+              value: {{ .Values.conf.ceph.pools.backup.chunk_size | quote }}
             - name: RBD_POOL_SECRET
               value: {{ .Values.secrets.rbd.backup | quote }}
             {{ end }}

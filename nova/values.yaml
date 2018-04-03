@@ -24,22 +24,16 @@ labels:
     compute:
       node_selector_key: openstack-compute-node
       node_selector_value: enabled
+    compute_ironic:
+      node_selector_key: openstack-compute-node
+      node_selector_value: enabled
+  api_metadata:
+    node_selector_key: openstack-control-plane
+    node_selector_value: enabled
   conductor:
     node_selector_key: openstack-control-plane
     node_selector_value: enabled
   consoleauth:
-    node_selector_key: openstack-control-plane
-    node_selector_value: enabled
-  scheduler:
-    node_selector_key: openstack-control-plane
-    node_selector_value: enabled
-  osapi:
-    node_selector_key: openstack-control-plane
-    node_selector_value: enabled
-  api_metadata:
-    node_selector_key: openstack-control-plane
-    node_selector_value: enabled
-  placement:
     node_selector_key: openstack-control-plane
     node_selector_value: enabled
   job:
@@ -48,91 +42,115 @@ labels:
   novncproxy:
     node_selector_key: openstack-control-plane
     node_selector_value: enabled
+  osapi:
+    node_selector_key: openstack-control-plane
+    node_selector_value: enabled
+  placement:
+    node_selector_key: openstack-control-plane
+    node_selector_value: enabled
+  scheduler:
+    node_selector_key: openstack-control-plane
+    node_selector_value: enabled
+  spiceproxy:
+    node_selector_key: openstack-control-plane
+    node_selector_value: enabled
+  test:
+    node_selector_key: openstack-control-plane
+    node_selector_value: enabled
 
 images:
+  pull_policy: IfNotPresent
   tags:
-    test: docker.io/kolla/ubuntu-source-rally:4.0.0
-    db_init: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
-    db_sync: docker.io/kolla/ubuntu-source-nova-api:3.0.3
-    db_drop: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
-    ks_user: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
-    ks_service: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
-    ks_endpoints: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
-    api: docker.io/kolla/ubuntu-source-nova-api:3.0.3
-    conductor: docker.io/kolla/ubuntu-source-nova-conductor:3.0.3
-    scheduler: docker.io/kolla/ubuntu-source-nova-scheduler:3.0.3
-    novncproxy: docker.io/kolla/ubuntu-source-nova-novncproxy:3.0.3
-    novncproxy_assets: docker.io/kolla/ubuntu-source-nova-novncproxy:3.0.3
-    consoleauth: docker.io/kolla/ubuntu-source-nova-consoleauth:3.0.3
-    compute: docker.io/kolla/ubuntu-source-nova-compute:3.0.3
-    compute_ssh: docker.io/kolla/ubuntu-source-nova-ssh:3.0.3
-    placement: docker.io/kolla/ubuntu-source-nova-placement-api:3.0.3-beta.1
-    bootstrap: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
-    dep_check: quay.io/stackanetes/kubernetes-entrypoint:v0.2.1
-    cell_setup: docker.io/kolla/ubuntu-source-nova-api:3.0.3
-  pull_policy: "IfNotPresent"
+    bootstrap: docker.io/openstackhelm/heat:newton
+    db_drop: docker.io/openstackhelm/heat:newton
+    db_init: docker.io/openstackhelm/heat:newton
+    dep_check: 'quay.io/stackanetes/kubernetes-entrypoint:v0.3.0'
+    rabbit_init: docker.io/rabbitmq:3.7-management
+    ks_user: docker.io/openstackhelm/heat:newton
+    ks_service: docker.io/openstackhelm/heat:newton
+    ks_endpoints: docker.io/openstackhelm/heat:newton
+    nova_api: docker.io/openstackhelm/nova:newton
+    nova_cell_setup: docker.io/openstackhelm/nova:newton
+    nova_compute: docker.io/openstackhelm/nova:newton
+    nova_compute_ironic: 'docker.io/kolla/ubuntu-source-nova-compute-ironic:3.0.3'
+    nova_compute_ssh: docker.io/openstackhelm/nova:newton
+    nova_conductor: docker.io/openstackhelm/nova:newton
+    nova_consoleauth: docker.io/openstackhelm/nova:newton
+    nova_db_sync: docker.io/openstackhelm/nova:newton
+    nova_novncproxy: docker.io/openstackhelm/nova:newton
+    nova_novncproxy_assets: 'docker.io/kolla/ubuntu-source-nova-novncproxy:3.0.3'
+    nova_placement: docker.io/openstackhelm/nova:newton
+    nova_scheduler: docker.io/openstackhelm/nova:newton
+    nova_spiceproxy: docker.io/openstackhelm/nova:newton
+    nova_spiceproxy_assets: 'docker.io/kolla/ubuntu-source-nova-spicehtml5proxy:3.0.3'
+    test: 'docker.io/kolla/ubuntu-source-rally:4.0.0'
 
 bootstrap:
   enabled: true
+  ks_user: admin
   script: null
-  flavors:
-    enabled: true
-    options:
-      m1_tiny:
-          name: "m1.tiny"
-          id: "auto"
-          ram: 512
-          disk: 1
-          vcpus: 1
-      m1_small:
-          name: "m1.small"
-          id: "auto"
-          ram: 2048
-          disk: 20
-          vcpus: 1
-      m1_medium:
-          name: "m1.medium"
-          id: "auto"
-          ram: 4096
-          disk: 40
-          vcpus: 2
-      m1_large:
-          name: "m1.large"
-          id: "auto"
-          ram: 8192
-          disk: 80
-          vcpus: 4
-      m1_xlarge:
-          name: "m1.xlarge"
-          id: "auto"
-          ram: 16384
-          disk: 160
-          vcpus: 8
+  structured:
+    flavors:
+      enabled: true
+      options:
+        m1_tiny:
+            name: "m1.tiny"
+            id: "auto"
+            ram: 512
+            disk: 1
+            vcpus: 1
+        m1_small:
+            name: "m1.small"
+            id: "auto"
+            ram: 2048
+            disk: 20
+            vcpus: 1
+        m1_medium:
+            name: "m1.medium"
+            id: "auto"
+            ram: 4096
+            disk: 40
+            vcpus: 2
+        m1_large:
+            name: "m1.large"
+            id: "auto"
+            ram: 8192
+            disk: 80
+            vcpus: 4
+        m1_xlarge:
+            name: "m1.xlarge"
+            id: "auto"
+            ram: 16384
+            disk: 160
+            vcpus: 8
 
 network:
   # provide what type of network wiring will be used
-  # possible options: ovs, linuxbridge
-  backend: ovs
+  # possible options: openvswitch, linuxbridge, sriov
+  backend:
+    - openvswitch
   osapi:
     port: 8774
     ingress:
       public: true
+      classes:
+        namespace: "nginx"
+        cluster: "nginx-cluster"
       annotations:
-        kubernetes.io/ingress.class: "nginx"
-        ingress.kubernetes.io/rewrite-target: /
+        nginx.ingress.kubernetes.io/rewrite-target: /
     external_policy_local: false
     node_port:
       enabled: false
       port: 30774
   metadata:
-    # IF blank, set clusterIP and metadata_host dynamically
-    ip:
     port: 8775
     ingress:
       public: true
+      classes:
+        namespace: "nginx"
+        cluster: "nginx-cluster"
       annotations:
-        kubernetes.io/ingress.class: "nginx"
-        ingress.kubernetes.io/rewrite-target: /
+        nginx.ingress.kubernetes.io/rewrite-target: /
     external_policy_local: false
     node_port:
       enabled: false
@@ -141,18 +159,22 @@ network:
     port: 8778
     ingress:
       public: true
+      classes:
+        namespace: "nginx"
+        cluster: "nginx-cluster"
       annotations:
-        kubernetes.io/ingress.class: "nginx"
-        ingress.kubernetes.io/rewrite-target: /
+        nginx.ingress.kubernetes.io/rewrite-target: /
     node_port:
       enabled: false
       port: 30778
   novncproxy:
     node_port:
       enabled: false
-      port: 36080
-    port: 6080
-    targetPort: 6080
+      port: 30680
+  spiceproxy:
+    node_port:
+      enabled: false
+      port: 30682
   ssh:
     name: "nova-ssh"
     port: 8022
@@ -165,138 +187,190 @@ ceph:
   secret_uuid: 457eb676-33da-42ec-9a8c-9293d545c337
 
 dependencies:
-  api:
-    jobs:
-    - nova-db-sync
-    - nova-ks-user
-    - nova-ks-endpoints
-    services:
-    - service: oslo_messaging
-      endpoint: internal
-    - service: oslo_db
-      endpoint: internal
-    - service: identity
-      endpoint: internal
-    - service: compute_metadata
-      endpoint: public
-  db_init:
-    services:
-    - service: oslo_db
-      endpoint: internal
-  db_sync:
-    jobs:
-    - nova-db-init
-    services:
-    - service: oslo_db
-      endpoint: internal
-  db_drop:
-    services:
-    - service: oslo_db
-      endpoint: internal
-  bootstrap:
-    services:
-    - service: identity
-      endpoint: internal
-    - service: compute
-      endpoint: internal
-  ks_user:
-    services:
-    - service: identity
-      endpoint: internal
-  ks_service:
-    services:
-    - service: identity
-      endpoint: internal
-  ks_endpoints:
-    jobs:
-    - nova-ks-service
-    services:
-    - service: identity
-      endpoint: internal
-  compute:
-    jobs:
-    - nova-db-sync
-    services:
-    - service: oslo_messaging
-      endpoint: internal
-    - service: image
-      endpoint: internal
-    - service: compute
-      endpoint: internal
-    - service: network
-      endpoint: internal
-    daemonset:
-    - libvirt
-    # this should be set to corresponding neutron L2 agent
-    - neutron-ovs-agent
-  consoleauth:
-    jobs:
-    - nova-db-sync
-    services:
-    - service: oslo_messaging
-      endpoint: internal
-    - service: oslo_db
-      endpoint: internal
-    - service: identity
-      endpoint: internal
-    - service: compute
-      endpoint: internal
-  scheduler:
-    jobs:
-    - nova-db-sync
-    services:
-    - service: oslo_messaging
-      endpoint: internal
-    - service: oslo_db
-      endpoint: internal
-    - service: identity
-      endpoint: internal
-    - service: compute
-      endpoint: internal
-  conductor:
-    jobs:
-    - nova-db-sync
-    services:
-    - service: oslo_messaging
-      endpoint: internal
-    - service: oslo_db
-      endpoint: internal
-    - service: identity
-      endpoint: internal
-    - service: compute
-      endpoint: internal
-  tests:
-    service:
-    - service: image
-      endpoint: internal
-    - service: compute
-      endpoint: internal
-    - service: network
-      endpoint: internal
-  novncproxy:
-    jobs:
-    - nova-db-sync
-    services:
-    - service: oslo_db
-      endpoint: internal
-  cell_setup:
-    jobs:
-    - nova-db-sync
-    services:
-    - service: oslo_messaging
-      endpoint: internal
-    - service: oslo_db
-      endpoint: internal
-    - service: identity
-      endpoint: internal
-    - service: compute
-      endpoint: internal
+  dynamic:
+    targeted:
+      openvswitch:
+        compute:
+          pod:
+            - labels:
+                application: neutron
+                component: neutron-ovs-agent
+      linuxbridge:
+        compute:
+          pod:
+            - labels:
+                application: neutron
+                component: neutron-lb-agent
+      sriov:
+        compute:
+          pod:
+            - labels:
+                application: neutron
+                component: neutron-sriov-agent
+  static:
+    api:
+      jobs:
+        - nova-db-sync
+        - nova-ks-user
+        - nova-ks-endpoints
+        - nova-rabbit-init
+      services:
+        - endpoint: internal
+          service: oslo_messaging
+        - endpoint: internal
+          service: oslo_db
+        - endpoint: internal
+          service: identity
+        - endpoint: public
+          service: compute_metadata
+    bootstrap:
+      services:
+        - endpoint: internal
+          service: identity
+        - endpoint: internal
+          service: compute
+    cell_setup:
+      jobs:
+        - nova-db-sync
+        - nova-rabbit-init
+      services:
+        - endpoint: internal
+          service: oslo_messaging
+        - endpoint: internal
+          service: oslo_db
+        - endpoint: internal
+          service: identity
+        - endpoint: internal
+          service: compute
+    compute:
+      pod:
+        - labels:
+          application: libvirt
+          component: libvirt
+      jobs:
+        - nova-db-sync
+        - nova-rabbit-init
+      services:
+        - endpoint: internal
+          service: oslo_messaging
+        - endpoint: internal
+          service: image
+        - endpoint: internal
+          service: compute
+        - endpoint: internal
+          service: network
+    compute_ironic:
+      jobs:
+        - nova-db-sync
+        - nova-rabbit-init
+      services:
+        - endpoint: internal
+          service: oslo_messaging
+        - endpoint: internal
+          service: image
+        - endpoint: internal
+          service: compute
+        - endpoint: internal
+          service: network
+        - endpoint: internal
+          service: baremetal
+    conductor:
+      jobs:
+        - nova-db-sync
+        - nova-rabbit-init
+      services:
+        - endpoint: internal
+          service: oslo_messaging
+        - endpoint: internal
+          service: oslo_db
+        - endpoint: internal
+          service: identity
+        - endpoint: internal
+          service: compute
+    consoleauth:
+      jobs:
+        - nova-db-sync
+        - nova-rabbit-init
+      services:
+        - endpoint: internal
+          service: oslo_messaging
+        - endpoint: internal
+          service: oslo_db
+        - endpoint: internal
+          service: identity
+        - endpoint: internal
+          service: compute
+    db_drop:
+      services:
+        - endpoint: internal
+          service: oslo_db
+    db_init:
+      services:
+        - endpoint: internal
+          service: oslo_db
+    db_sync:
+      jobs:
+        - nova-db-init
+      services:
+        - endpoint: internal
+          service: oslo_db
+    ks_endpoints:
+      jobs:
+        - nova-ks-service
+      services:
+        - endpoint: internal
+          service: identity
+    ks_service:
+      services:
+        - endpoint: internal
+          service: identity
+    ks_user:
+      services:
+        - endpoint: internal
+          service: identity
+    rabbit_init:
+      services:
+      - service: oslo_messaging
+        endpoint: internal
+    novncproxy:
+      jobs:
+        - nova-db-sync
+      services:
+        - endpoint: internal
+          service: oslo_db
+    scheduler:
+      jobs:
+        - nova-db-sync
+        - nova-rabbit-init
+      services:
+        - endpoint: internal
+          service: oslo_messaging
+        - endpoint: internal
+          service: oslo_db
+        - endpoint: internal
+          service: identity
+        - endpoint: internal
+          service: compute
+    tests:
+      services:
+        - endpoint: internal
+          service: image
+        - endpoint: internal
+          service: compute
+        - endpoint: internal
+          service: network
 
 console:
   # serial | spice | novnc | none
   console_kind: novnc
   serial:
   spice:
+    compute:
+      # IF blank, search default routing interface
+      server_proxyclient_interface:
+    proxy:
+      # IF blank, search default routing interface
+      server_proxyclient_interface:
   novnc:
     compute:
       # IF blank, search default routing interface
@@ -330,10 +404,6 @@ conf:
       NovaAggregates.create_and_get_aggregate_details:
         - args:
             availability_zone: nova
-          context:
-            users:
-              tenants: 1
-              users_per_tenant: 1
           runner:
             concurrency: 1
             times: 1
@@ -344,10 +414,6 @@ conf:
       NovaAggregates.create_and_update_aggregate:
         - args:
             availability_zone: nova
-          context:
-            users:
-              tenants: 1
-              users_per_tenant: 1
           runner:
             concurrency: 1
             times: 1
@@ -378,10 +444,6 @@ conf:
             disk: 1
             ram: 500
             vcpus: 1
-          context:
-            users:
-              tenants: 1
-              users_per_tenant: 1
           runner:
             concurrency: 1
             times: 1
@@ -418,10 +480,6 @@ conf:
             disk: 1
             ram: 500
             vcpus: 1
-          context:
-            users:
-              tenants: 1
-              users_per_tenant: 1
           runner:
             concurrency: 1
             times: 1
@@ -436,10 +494,6 @@ conf:
               'quota:disk_read_bytes_sec': 10240
             ram: 500
             vcpus: 1
-          context:
-            users:
-              tenants: 1
-              users_per_tenant: 1
           runner:
             concurrency: 1
             times: 1
@@ -450,10 +504,6 @@ conf:
       NovaFlavors.list_flavors:
         - args:
             detailed: true
-          context:
-            users:
-              tenants: 1
-              users_per_tenant: 1
           runner:
             concurrency: 1
             times: 1
@@ -472,10 +522,6 @@ conf:
       NovaHypervisors.list_and_get_hypervisors:
         - args:
             detailed: true
-          context:
-            users:
-              tenants: 1
-              users_per_tenant: 1
           runner:
             concurrency: 1
             times: 1
@@ -486,10 +532,6 @@ conf:
       NovaHypervisors.list_and_get_uptime_hypervisors:
         - args:
             detailed: true
-          context:
-            users:
-              tenants: 1
-              users_per_tenant: 1
           runner:
             concurrency: 1
             times: 1
@@ -500,10 +542,6 @@ conf:
       NovaHypervisors.list_and_search_hypervisors:
         - args:
             detailed: true
-          context:
-            users:
-              tenants: 1
-              users_per_tenant: 1
           runner:
             concurrency: 1
             times: 1
@@ -523,10 +561,6 @@ conf:
               max: 0
       NovaHypervisors.statistics_hypervisors:
         - args: {}
-          context:
-            users:
-              tenants: 1
-              users_per_tenant: 1
           runner:
             concurrency: 1
             times: 1
@@ -537,10 +571,6 @@ conf:
       NovaImages.list_images:
         - args:
             detailed: true
-          context:
-            users:
-              tenants: 1
-              users_per_tenant: 1
           runner:
             concurrency: 1
             times: 1
@@ -549,11 +579,7 @@ conf:
             failure_rate:
               max: 0
       NovaKeypair.create_and_delete_keypair:
-        - context:
-            users:
-              tenants: 1
-              users_per_tenant: 1
-          runner:
+        - runner:
             concurrency: 1
             times: 1
             type: constant
@@ -561,11 +587,7 @@ conf:
             failure_rate:
               max: 0
       NovaKeypair.create_and_list_keypairs:
-        - context:
-            users:
-              tenants: 1
-              users_per_tenant: 1
-          runner:
+        - runner:
             concurrency: 1
             times: 1
             type: constant
@@ -576,10 +598,6 @@ conf:
         - args:
             rules_per_security_group: 1
             security_group_count: 1
-          context:
-            users:
-              tenants: 1
-              users_per_tenant: 1
           runner:
             concurrency: 1
             times: 1
@@ -591,10 +609,6 @@ conf:
         - args:
             rules_per_security_group: 1
             security_group_count: 1
-          context:
-            users:
-              tenants: 1
-              users_per_tenant: 1
           runner:
             concurrency: 1
             times: 1
@@ -605,10 +619,6 @@ conf:
       NovaSecGroup.create_and_update_secgroups:
         - args:
             security_group_count: 1
-          context:
-            users:
-              tenants: 1
-              users_per_tenant: 1
           runner:
             concurrency: 1
             times: 1
@@ -622,10 +632,6 @@ conf:
             kwargs:
               policies:
                 - affinity
-          context:
-            users:
-              tenants: 1
-              users_per_tenant: 1
           runner:
             concurrency: 1
             times: 1
@@ -966,16 +972,21 @@ conf:
     network:
       override:
       append:
+  nova_ironic:
+    DEFAULT:
+      scheduler_host_manager: ironic_host_manager
+      compute_driver: ironic.IronicDriver
   nova:
     DEFAULT:
       default_ephemeral_format: ext4
       ram_allocation_ratio: 1.0
       disk_allocation_ratio: 1.0
       cpu_allocation_ratio: 3.0
-      force_config_drive: true
       state_path: /var/lib/nova
       osapi_compute_listen: 0.0.0.0
-      osapi_compute_listen_port: 8774
+      #NOTE(portdirect): the bind port should not be defined, and is manipulated
+      # via the endpoints section.
+      osapi_compute_listen_port: null
       osapi_compute_workers: 1
       metadata_workers: 1
       use_neutron: true
@@ -993,6 +1004,11 @@ conf:
       vncserver_listen: 0.0.0.0
       # leave blank, this should be set by each compute nodes's ip
       vncserver_proxyclient_address: null
+    spice:
+      html5proxy_host: 0.0.0.0
+      server_listen: 0.0.0.0
+      # leave blank, this should be set by each compute nodes's ip
+      server_proxyclient_address: null
     conductor:
       workers: 1
     oslo_policy:
@@ -1005,6 +1021,9 @@ conf:
       num_retries: 3
     cinder:
       catalog_info: volumev2:cinder:internalURL
+    ironic:
+      api_endpoint: null
+      auth_url: null
     neutron:
       metadata_proxy_shared_secret: "password"
       service_metadata_proxy: True
@@ -1046,19 +1065,23 @@ conf:
 secrets:
   identity:
     admin: nova-keystone-admin
-    user: nova-keystone-user
+    nova: nova-keystone-user
     placement: nova-keystone-placement
+    test: nova-keystone-test
   oslo_db:
     admin: nova-db-admin
-    user: nova-db-user
+    nova: nova-db-user
   oslo_db_api:
     admin: nova-db-api-admin
-    user: nova-db-api-user
+    nova: nova-db-api-user
   oslo_db_cell0:
     admin: nova-db-api-admin
-    user: nova-db-api-user
+    nova: nova-db-api-user
+  oslo_messaging:
+    admin: nova-rabbitmq-admin
+    nova: nova-rabbitmq-user
 
-# typically overriden by environmental
+# typically overridden by environmental
 # values, but should include all endpoints
 # required by this chart
 endpoints:
@@ -1068,7 +1091,7 @@ endpoints:
       admin:
         username: root
         password: password
-      user:
+      nova:
         username: nova
         password: password
     hosts:
@@ -1085,7 +1108,7 @@ endpoints:
       admin:
         username: root
         password: password
-      user:
+      nova:
         username: nova
         password: password
     hosts:
@@ -1102,22 +1125,25 @@ endpoints:
       admin:
         username: root
         password: password
-      user:
+      nova:
         username: nova
         password: password
     hosts:
       default: mariadb
     host_fqdn_override:
       default: null
-    path: /nova_api_cell0
+    path: /nova_cell0
     scheme: mysql+pymysql
     port:
       mysql:
         default: 3306
   oslo_messaging:
     auth:
-      user:
+      admin:
         username: rabbitmq
+        password: password
+      nova:
+        username: nova
         password: password
     hosts:
       default: rabbitmq
@@ -1128,7 +1154,16 @@ endpoints:
     port:
       amqp:
         default: 5672
+      http:
+        default: 15672
   oslo_cache:
+    auth:
+      # NOTE(portdirect): this is used to define the value for keystone
+      # authtoken cache encryption key, if not set it will be populated
+      # automatically with a random value, but to take advantage of
+      # this feature all services should be set to use the same key,
+      # and memcache service.
+      memcache_secret_key: null
     hosts:
       default: memcached
     host_fqdn_override:
@@ -1146,7 +1181,7 @@ endpoints:
         project_name: admin
         user_domain_name: default
         project_domain_name: default
-      user:
+      nova:
         role: admin
         region_name: RegionOne
         username: nova
@@ -1154,6 +1189,8 @@ endpoints:
         project_name: service
         user_domain_name: default
         project_domain_name: default
+      #NOTE(portdirect): the neutron user is not managed by the nova chart
+      # these values should match those set in the neutron chart.
       neutron:
         region_name: RegionOne
         project_name: service
@@ -1161,12 +1198,31 @@ endpoints:
         user_domain_name: default
         username: neutron
         password: password
+      #NOTE(portdirect): the ironic user is not managed by the nova chart
+      # these values should match those set in the ironic chart.
+      ironic:
+        auth_type: password
+        auth_version: v3
+        region_name: RegionOne
+        project_name: service
+        project_domain_name: default
+        user_domain_name: default
+        username: ironic
+        password: password
       placement:
         role: admin
         region_name: RegionOne
         username: placement
         password: password
         project_name: service
+        user_domain_name: default
+        project_domain_name: default
+      test:
+        role: admin
+        region_name: RegionOne
+        username: test
+        password: password
+        project_name: test
         user_domain_name: default
         project_domain_name: default
     hosts:
@@ -1206,7 +1262,7 @@ endpoints:
     host_fqdn_override:
       default: null
     path:
-      default: "/v2/%(tenant_id)s"
+      default: "/v2.1/%(tenant_id)s"
     scheme:
       default: 'http'
     port:
@@ -1217,6 +1273,9 @@ endpoints:
         default: 6080
   compute_metadata:
     name: nova
+    ip:
+      # IF blank, set clusterIP and metadata_host dynamically
+      ingress: null
     hosts:
       default: nova-metadata
       public: metadata
@@ -1243,6 +1302,19 @@ endpoints:
     port:
       novnc_proxy:
         default: 6080
+  compute_spice_proxy:
+    name: nova
+    hosts:
+      default: nova-spiceproxy
+    host_fqdn_override:
+      default: null
+    path:
+      default: /spice_auto.html
+    scheme:
+      default: 'http'
+    port:
+      spice_proxy:
+        default: 6082
   placement:
     name: placement
     hosts:
@@ -1273,11 +1345,26 @@ endpoints:
       api:
         default: 9696
         public: 80
+  baremetal:
+    name: ironic
+    hosts:
+      default: ironic-api
+      public: ironic
+    host_fqdn_override:
+      default: null
+    path:
+      default: null
+    scheme:
+      default: http
+    port:
+      api:
+        default: 6385
+        public: 80
 
 pod:
   user:
     nova:
-      uid: 1000
+      uid: 42424
   affinity:
       anti:
         type:
@@ -1288,6 +1375,9 @@ pod:
     nova_compute:
       init_container: null
       nova_compute:
+    nova_compute_ironic:
+      init_container: null
+      nova_compute_ironic:
     nova_api_metadata:
       init_container: null
       nova_api_metadata:
@@ -1315,14 +1405,19 @@ pod:
     nova_novncproxy:
       init_novncproxy: null
       nova_novncproxy:
+    nova_spiceproxy:
+      init_spiceproxy: null
+      nova_spiceproxy:
   replicas:
     api_metadata: 1
+    compute_ironic: 1
     placement: 1
     osapi: 1
     conductor: 1
     consoleauth: 1
     scheduler: 1
     novncproxy: 1
+    spiceproxy: 1
   lifecycle:
     upgrades:
       deployments:
@@ -1354,6 +1449,13 @@ pod:
   resources:
     enabled: false
     compute:
+      requests:
+        memory: "128Mi"
+        cpu: "100m"
+      limits:
+        memory: "1024Mi"
+        cpu: "2000m"
+    compute_ironic:
       requests:
         memory: "128Mi"
         cpu: "100m"
@@ -1416,6 +1518,13 @@ pod:
       limits:
         memory: "1024Mi"
         cpu: "2000m"
+    spiceproxy:
+      requests:
+        memory: "128Mi"
+        cpu: "100m"
+      limits:
+        memory: "1024Mi"
+        cpu: "2000m"
     jobs:
       bootstrap:
         requests:
@@ -1425,6 +1534,13 @@ pod:
           memory: "1024Mi"
           cpu: "2000m"
       db_init:
+        requests:
+          memory: "128Mi"
+          cpu: "100m"
+        limits:
+          memory: "1024Mi"
+          cpu: "2000m"
+      rabbit_init:
         requests:
           memory: "128Mi"
           cpu: "100m"
@@ -1481,7 +1597,6 @@ pod:
           memory: "1024Mi"
           cpu: "2000m"
 
-
 manifests:
   configmap_bin: true
   configmap_etc: true
@@ -1492,6 +1607,7 @@ manifests:
   deployment_conductor: true
   deployment_consoleauth: true
   deployment_novncproxy: true
+  deployment_spiceproxy: true
   deployment_scheduler: true
   ingress_metadata: true
   ingress_placement: true
@@ -1501,6 +1617,7 @@ manifests:
   job_db_init_placement: true
   job_db_sync: true
   job_db_drop: false
+  job_rabbit_init: true
   job_ks_endpoints: true
   job_ks_service: true
   job_ks_user: true
@@ -1516,10 +1633,13 @@ manifests:
   secret_db: true
   secret_keystone: true
   secret_keystone_placement: true
+  secret_rabbitmq: true
   service_ingress_metadata: true
   service_ingress_placement: true
   service_ingress_osapi: true
   service_metadata: true
   service_placement: true
   service_novncproxy: true
+  service_spiceproxy: true
   service_osapi: true
+  statefulset_compute_ironic: false

@@ -16,7 +16,7 @@ limitations under the License.
 
 {{- if .Values.manifests.daemonset_metricd }}
 {{- $envAll := . }}
-{{- $dependencies := .Values.dependencies.metricd }}
+{{- $dependencies := .Values.dependencies.static.metricd }}
 
 {{- $mounts_gnocchi_metricd := .Values.pod.mounts.gnocchi_metricd.gnocchi_metricd }}
 {{- $mounts_gnocchi_metricd_init := .Values.pod.mounts.gnocchi_metricd.init_container }}
@@ -40,7 +40,7 @@ spec:
     spec:
       serviceAccountName: {{ $serviceAccountName }}
       nodeSelector:
-        {{ .Values.labels.node_selector_key }}: {{ .Values.labels.node_selector_value }}
+        {{ .Values.labels.metricd.node_selector_key }}: {{ .Values.labels.metricd.node_selector_value }}
       initContainers:
 {{ tuple $envAll $dependencies $mounts_gnocchi_metricd_init | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
         - name: ceph-keyring-placement

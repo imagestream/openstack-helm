@@ -21,11 +21,7 @@ export HOME=/tmp
 
 cat <<EOF > /etc/ceph/ceph.client.${RBD_USER}.keyring
 [client.${RBD_USER}]
-{{- if .Values.conf.ceph.cinder_keyring }}
-    key = {{ .Values.conf.ceph.cinder_keyring }}
-{{- else }}
     key = $(cat /tmp/client-keyring)
-{{- end }}
 EOF
 
 exit 0

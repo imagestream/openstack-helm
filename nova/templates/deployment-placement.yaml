@@ -16,7 +16,7 @@ limitations under the License.
 
 {{- if .Values.manifests.deployment_placement }}
 {{- $envAll := . }}
-{{- $dependencies := .Values.dependencies.api }}
+{{- $dependencies := .Values.dependencies.static.api }}
 
 {{- $mounts_nova_placement := .Values.pod.mounts.nova_placement.nova_placement }}
 {{- $mounts_nova_placement_init := .Values.pod.mounts.nova_placement.init_container }}
@@ -49,7 +49,7 @@ spec:
 {{ tuple $envAll $dependencies $mounts_nova_placement_init | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
       containers:
         - name: nova-placement-api
-          image: {{ .Values.images.tags.placement }}
+          image: {{ .Values.images.tags.nova_placement }}
           imagePullPolicy: {{ .Values.images.pull_policy }}
 {{ tuple $envAll $envAll.Values.pod.resources.placement | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
           command:
@@ -62,11 +62,12 @@ spec:
                   - /tmp/nova-placement-api.sh
                   - stop
           ports:
-            - containerPort: {{ .Values.network.placement.port }}
+            - name: p-api
+              containerPort: {{ tuple "placement" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
           readinessProbe:
             #NOTE(portdirect): use tcpSocket check as HTTP will return 401
             tcpSocket:
-              port: {{ .Values.network.placement.port }}
+              port: {{ tuple "placement" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
             initialDelaySeconds: 15
             periodSeconds: 10
           volumeMounts:

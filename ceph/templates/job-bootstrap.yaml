@@ -14,10 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */}}
 
-{{- if .Values.manifests.job_bootstrap }}
+{{- if and .Values.manifests.job_bootstrap .Values.bootstrap.enabled }}
 {{- $envAll := . }}
-{{- if .Values.bootstrap.enabled }}
-{{- $dependencies := .Values.dependencies.bootstrap }}
+{{- $dependencies := .Values.dependencies.static.bootstrap }}
 
 {{- $serviceAccountName := "ceph-bootstrap"}}
 {{ tuple $envAll $dependencies $serviceAccountName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
@@ -35,7 +34,7 @@ spec:
       serviceAccountName: {{ $serviceAccountName }}
       restartPolicy: OnFailure
       nodeSelector:
-        {{ .Values.labels.jobs.node_selector_key }}: {{ .Values.labels.jobs.node_selector_value }}
+        {{ .Values.labels.job.node_selector_key }}: {{ .Values.labels.job.node_selector_value }}
       initContainers:
 {{ tuple $envAll $dependencies list | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container"  | indent 8 }}
       containers:
@@ -70,5 +69,4 @@ spec:
         - name: ceph-client-admin-keyring
           secret:
             secretName: {{ .Values.secrets.keyrings.admin }}
-{{- end }}
 {{- end }}
