@@ -25,7 +25,7 @@ function start () {
   ln -s /etc/openstack-dashboard/local_settings ${SITE_PACKAGES_ROOT}/openstack_dashboard/local/local_settings.py
 
   cp "${SITE_PACKAGES_ROOT}/neutron_lbaas_dashboard/enabled/_1481_project_ng_loadbalancersv2_panel.py" \
-        "${SITE_PACKAGES_ROOT}/openstack_dashboard/local/enabled/_1481_project_ng_loadbalancersv2_panel.py"
+        "${SITE_PACKAGES_ROOT}/openstack_dashboard/local/enabled/_1481_project_ng_loadbalancersv2_panel.py" || true
 
   # wsgi/horizon-http needs open files here, including secret_key_store
   chown -R horizon ${SITE_PACKAGES_ROOT}/openstack_dashboard/local/
