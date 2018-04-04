@@ -329,7 +329,6 @@ dependencies:
   static:
     api:
       jobs:
-        - glance-storage-init
         - glance-db-sync
         - glance-ks-user
         - glance-ks-endpoints
@@ -342,7 +341,6 @@ dependencies:
           service: oslo_messaging
     bootstrap:
       jobs:
-        - glance-storage-init
         - glance-db-sync
         - glance-ks-user
         - glance-ks-endpoints
@@ -387,7 +385,6 @@ dependencies:
         endpoint: internal
     registry:
       jobs:
-        - glance-storage-init
         - glance-db-sync
         - glance-ks-user
         - glance-ks-endpoints
