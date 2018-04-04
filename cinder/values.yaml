@@ -774,6 +774,7 @@ dependencies:
         - cinder-db-sync
         - cinder-ks-user
         - cinder-ks-endpoints
+        - cinder-storage-init
       services:
         - endpoint: internal
           service: oslo_db
@@ -784,6 +785,8 @@ dependencies:
         - cinder-db-sync
         - cinder-ks-user
         - cinder-ks-endpoints
+        - cinder-storage-init
+        - cinder-backup-storage-init
       services:
         - endpoint: internal
           service: identity
@@ -836,6 +839,7 @@ dependencies:
         - cinder-db-sync
         - cinder-ks-user
         - cinder-ks-endpoints
+        - cinder-storage-init
       services:
         - endpoint: internal
           service: identity
@@ -854,6 +858,7 @@ dependencies:
         - cinder-db-sync
         - cinder-ks-user
         - cinder-ks-endpoints
+        - cinder-storage-init
       services:
         - endpoint: internal
           service: identity
@@ -864,6 +869,7 @@ dependencies:
         - cinder-db-sync
         - cinder-ks-user
         - cinder-ks-endpoints
+        - cinder-storage-init
       services:
         - endpoint: internal
           service: identity
