@@ -1003,12 +1003,12 @@ conf:
       novncproxy_host: 0.0.0.0
       vncserver_listen: 0.0.0.0
       # leave blank, this should be set by each compute nodes's ip
-      vncserver_proxyclient_address: null
+      #vncserver_proxyclient_address: null
     spice:
       html5proxy_host: 0.0.0.0
       server_listen: 0.0.0.0
       # leave blank, this should be set by each compute nodes's ip
-      server_proxyclient_address: null
+      #server_proxyclient_address: null
     conductor:
       workers: 1
     oslo_policy:
