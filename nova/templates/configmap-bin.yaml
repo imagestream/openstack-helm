@@ -47,6 +47,8 @@ data:
 {{- end }}
   nova-api.sh: |
 {{ tuple "bin/_nova-api.sh.tpl" . | include "helm-toolkit.utils.template" | indent 4 }}
+  nova-api-init.sh: |
+{{ tuple "bin/_nova-api-init.sh.tpl" . | include "helm-toolkit.utils.template" | indent 4 }}
   nova-api-metadata.sh: |
 {{ tuple "bin/_nova-api-metadata.sh.tpl" . | include "helm-toolkit.utils.template" | indent 4 }}
   nova-api-metadata-init.sh: |

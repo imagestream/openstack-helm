@@ -68,6 +68,8 @@ spec:
               mountPath: /etc/nova/policy.yaml
               subPath: policy.yaml
               readOnly: true
+            - name: varlibnova
+              mountPath: /var/lib/nova
 {{ if $mounts_nova_consoleauth.volumeMounts }}{{ toYaml $mounts_nova_consoleauth.volumeMounts | indent 12 }}{{ end }}
       volumes:
         - name: nova-bin
@@ -78,5 +80,8 @@ spec:
           configMap:
             name: nova-etc
             defaultMode: 0444
+        - name: varlibnova
+          hostPath:
+            path: /var/lib/nova-os-helm
 {{ if $mounts_nova_consoleauth.volumes }}{{ toYaml $mounts_nova_consoleauth.volumes | indent 8 }}{{ end }}
 {{- end }}

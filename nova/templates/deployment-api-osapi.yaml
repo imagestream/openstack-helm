@@ -47,6 +47,23 @@ spec:
       terminationGracePeriodSeconds: {{ .Values.pod.lifecycle.termination_grace_period.osapi.timeout | default "30" }}
       initContainers:
 {{ tuple $envAll $dependencies $mounts_nova_api_osapi_init | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
+        - name: nova-osapi-init
+          image: {{ .Values.images.tags.nova_api}}
+          imagePullPolicy: {{ .Values.images.pull_policy }}
+          securityContext:
+            runAsUser: 0
+          env:
+            - name: NOVA_USER_UID
+              value: "{{ .Values.pod.user.nova.uid }}"
+          command:
+            - /tmp/nova-api-init.sh
+          volumeMounts:
+            - name: nova-bin
+              mountPath: /tmp/nova-api-init.sh
+              subPath: nova-api-init.sh
+              readOnly: true
+            - name: varlibnova
+              mountPath: /var/lib/nova
       containers:
         - name: nova-osapi
           image: {{ .Values.images.tags.nova_api }}
@@ -86,6 +103,8 @@ spec:
               mountPath: /etc/nova/policy.yaml
               subPath: policy.yaml
               readOnly: true
+            - name: varlibnova
+              mountPath: /var/lib/nova
 {{ if $mounts_nova_api_osapi.volumeMounts }}{{ toYaml $mounts_nova_api_osapi.volumeMounts | indent 12 }}{{ end }}
       volumes:
         - name: nova-bin
@@ -96,5 +115,8 @@ spec:
           configMap:
             name: nova-etc
             defaultMode: 0444
+        - name: varlibnova
+          hostPath:
+            path: /var/lib/nova-os-helm
 {{ if $mounts_nova_api_osapi.volumes}}{{ toYaml $mounts_nova_api_osapi.volumes | indent 8 }}{{ end }}
 {{- end }}
