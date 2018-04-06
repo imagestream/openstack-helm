@@ -1020,7 +1020,7 @@ conf:
     glance:
       num_retries: 3
     cinder:
-      catalog_info: volumev2:cinder:internalURL
+      catalog_info: volumev3:cinder:internalURL
     ironic:
       api_endpoint: null
       auth_url: null
