@@ -1485,9 +1485,9 @@ conf:
     DEFAULT:
       # IF blank, set dynamically from metadata hosts
       # But ingress requires names! Scott 01-23-2018
-      nova_metadata_ip: metadata
-      nova_metadata_port: 80
-      nova_metadata_protocol: http
+#      nova_metadata_host: metadata
+#      nova_metadata_port: 80
+#      nova_metadata_protocol: http
       # we cannot change the proxy socket path as it is declared
       # as a hostPath volume from agent daemonsets
       metadata_proxy_socket: /var/lib/neutron/openstack-helm/metadata_proxy
@@ -1666,7 +1666,8 @@ manifests:
   daemonset_dhcp_agent: true
   daemonset_l3_agent: true
   daemonset_lb_agent: true
-  daemonset_lbaas_agent: true
+  # Deprecated in Queens
+  daemonset_lbaas_agent: false
   daemonset_metadata_agent: true
   daemonset_ovs_agent: true
   daemonset_sriov_agent: true
