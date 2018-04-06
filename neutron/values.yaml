@@ -1038,6 +1038,7 @@ conf:
         - dhcp_agent
         - l3_agent
         - lb_agent
+        - lbaas_agent
         - metadata_agent
         - ovs_agent
         - sriov_agent
@@ -1065,6 +1066,7 @@ conf:
         - dhcp_agent
         - l3_agent
         - lb_agent
+        - lbaas_agent
         - metadata_agent
         - ovs_agent
         - sriov_agent
@@ -1090,6 +1092,7 @@ conf:
         - dhcp_agent
         - l3_agent
         - lb_agent
+        - lbaas_agent
         - metadata_agent
         - ovs_agent
         - sriov_agent
@@ -1111,6 +1114,7 @@ conf:
         - dhcp_agent
         - l3_agent
         - lb_agent
+        - lbaas_agent
         - metadata_agent
         - ovs_agent
         - sriov_agent
@@ -1172,6 +1176,7 @@ conf:
         - dhcp_agent
         - l3_agent
         - lb_agent
+        - lbaas_agent
         - metadata_agent
         - ovs_agent
         - sriov_agent
@@ -1193,6 +1198,7 @@ conf:
         - dhcp_agent
         - l3_agent
         - lb_agent
+        - lbaas_agent
         - metadata_agent
         - ovs_agent
         - sriov_agent
@@ -1221,6 +1227,10 @@ conf:
         dhcp_release: CommandFilter, dhcp_release, root
         dhcp_release6: CommandFilter, dhcp_release6, root
 
+        # haproxy
+        haproxy: RegExpFilter, haproxy, root, haproxy, -f, .*
+        kill_haproxy: KillFilter, root, haproxy, -15, -9, -HUP
+
         # metadata proxy
         metadata_proxy: CommandFilter, neutron-ns-metadata-proxy, root
         # RHEL invocation of the metadata proxy will report /usr/bin/python
@@ -1236,6 +1246,7 @@ conf:
         - dhcp_agent
         - l3_agent
         - lb_agent
+        - lbaas_agent
         - metadata_agent
         - ovs_agent
         - sriov_agent
@@ -1256,6 +1267,7 @@ conf:
         - dhcp_agent
         - l3_agent
         - lb_agent
+        - lbaas_agent
         - metadata_agent
         - ovs_agent
         - sriov_agent
@@ -1292,6 +1304,7 @@ conf:
         - dhcp_agent
         - l3_agent
         - lb_agent
+        - lbaas_agent
         - metadata_agent
         - ovs_agent
         - sriov_agent
@@ -1329,6 +1342,7 @@ conf:
         - dhcp_agent
         - l3_agent
         - lb_agent
+        - lbaas_agent
         - metadata_agent
         - ovs_agent
         - sriov_agent
