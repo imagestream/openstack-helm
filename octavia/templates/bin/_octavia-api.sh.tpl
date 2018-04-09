@@ -18,7 +18,7 @@ set -ex
 COMMAND="${@:-start}"
 
 function start () {
-  exec octavia-server \
+  exec octavia-api \
         --config-file /etc/octavia/octavia.conf
 }
 
