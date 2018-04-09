@@ -20,11 +20,11 @@ limitations under the License.
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ tuple "load_balancer" "internal" . | include "helm-toolkit.endpoints.hostname_short_endpoint_lookup" }}
+  name: {{ tuple "loadbalancer" "internal" . | include "helm-toolkit.endpoints.hostname_short_endpoint_lookup" }}
 spec:
   ports:
     - name: o-api
-      port: {{ tuple "load_balancer" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
+      port: {{ tuple "loadbalancer" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
     {{ if .Values.network.api.node_port.enabled }}
       nodePort: {{ .Values.network.api.node_port.port }}
     {{ end }}

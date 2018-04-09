@@ -15,6 +15,6 @@ limitations under the License.
 */}}
 
 {{- if .Values.manifests.job_ks_endpoints }}
-{{- $ksServiceJob := dict "envAll" . "serviceName" "octavia" "serviceTypes" ( tuple "load_balancer" ) -}}
+{{- $ksServiceJob := dict "envAll" . "serviceName" "octavia" "serviceTypes" ( tuple "loadbalancer" ) -}}
 {{ $ksServiceJob | include "helm-toolkit.manifests.job_ks_endpoints" }}
 {{- end }}

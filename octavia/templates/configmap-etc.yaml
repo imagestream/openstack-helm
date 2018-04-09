@@ -60,11 +60,11 @@ limitations under the License.
 {{- end -}}
 
 {{- if empty .Values.conf.octavia.DEFAULT.public_endpoint -}}
-{{- tuple "load_balancer" "public" "api" . | include "helm-toolkit.endpoints.keystone_endpoint_uri_lookup" | set .Values.conf.octavia.DEFAULT "public_endpoint" | quote | trunc 0 -}}
+{{- tuple "loadbalancer" "public" "api" . | include "helm-toolkit.endpoints.keystone_endpoint_uri_lookup" | set .Values.conf.octavia.DEFAULT "public_endpoint" | quote | trunc 0 -}}
 {{- end -}}
 
 {{- if empty .Values.conf.octavia.DEFAULT.bind_port -}}
-{{- tuple "load_balancer" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" | set .Values.conf.octavia.DEFAULT "bind_port" | quote | trunc 0 -}}
+{{- tuple "loadbalancer" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" | set .Values.conf.octavia.DEFAULT "bind_port" | quote | trunc 0 -}}
 {{- end -}}
 
 ---

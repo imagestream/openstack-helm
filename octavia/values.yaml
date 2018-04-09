@@ -427,7 +427,7 @@ endpoints:
         default: 35357
       api:
         default: 80
-  load_balancer:
+  loadbalancer:
     name: octavia
     hosts:
       default: octavia-api
