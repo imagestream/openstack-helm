@@ -353,6 +353,10 @@ conf:
         #LAUNCH_INSTANCE_LEGACY_ENABLED = True
         #LAUNCH_INSTANCE_NG_ENABLED = False
 
+        LAUNCH_INSTANCE_DEFAULTS = {
+            'create_volume': False,
+        }
+
         # The Xen Hypervisor has the ability to set the mount point for volumes
         # attached to instances (other Hypervisors currently do not). Setting
         # can_set_mount_point to True will add the option to set the mount point
