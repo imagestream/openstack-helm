@@ -34,7 +34,6 @@ images:
     neutron_dhcp: docker.io/openstackhelm/neutron:ocata
     neutron_metadata: docker.io/openstackhelm/neutron:ocata
     neutron_l3: docker.io/openstackhelm/neutron:ocata
-    neutron_lbaas: docker.io/kolla/ubuntu-source-neutron-lbaas-agent:ocata
     neutron_openvswitch_agent: docker.io/openstackhelm/neutron:ocata
     neutron_linuxbridge_agent: docker.io/openstackhelm/neutron:ocata
     neutron_sriov_agent: docker.io/openstackhelm/neutron:ocata-sriov-1804
@@ -48,9 +47,6 @@ labels:
       node_selector_key: openstack-control-plane
       node_selector_value: enabled
     l3:
-      node_selector_key: openstack-control-plane
-      node_selector_value: enabled
-    lbaas:
       node_selector_key: openstack-control-plane
       node_selector_value: enabled
     metadata:
@@ -325,9 +321,6 @@ pod:
     neutron_lb_agent:
       init_container: null
       neutron_lb_agent:
-    neutron_lbaas_agent:
-      init_container: null
-      neutron_lbaas_agent:
     neutron_metadata_agent:
       init_container: null
       neutron_metadata_agent:
@@ -367,10 +360,6 @@ pod:
           enabled: true
           min_ready_seconds: 0
           max_unavailable: 1
-        lbaas_agent:
-          enabled: false
-          min_ready_seconds: 0
-          max_unavailable: 1
         metadata_agent:
           enabled: true
           min_ready_seconds: 0
@@ -407,13 +396,6 @@ pod:
           memory: "1024Mi"
           cpu: "2000m"
       lb:
-        requests:
-          memory: "128Mi"
-          cpu: "100m"
-        limits:
-          memory: "1024Mi"
-          cpu: "2000m"
-      lbaas:
         requests:
           memory: "128Mi"
           cpu: "100m"
@@ -1038,7 +1020,6 @@ conf:
         - dhcp_agent
         - l3_agent
         - lb_agent
-        - lbaas_agent
         - metadata_agent
         - ovs_agent
         - sriov_agent
@@ -1066,7 +1047,6 @@ conf:
         - dhcp_agent
         - l3_agent
         - lb_agent
-        - lbaas_agent
         - metadata_agent
         - ovs_agent
         - sriov_agent
@@ -1092,7 +1072,6 @@ conf:
         - dhcp_agent
         - l3_agent
         - lb_agent
-        - lbaas_agent
         - metadata_agent
         - ovs_agent
         - sriov_agent
@@ -1114,7 +1093,6 @@ conf:
         - dhcp_agent
         - l3_agent
         - lb_agent
-        - lbaas_agent
         - metadata_agent
         - ovs_agent
         - sriov_agent
@@ -1176,7 +1154,6 @@ conf:
         - dhcp_agent
         - l3_agent
         - lb_agent
-        - lbaas_agent
         - metadata_agent
         - ovs_agent
         - sriov_agent
@@ -1198,7 +1175,6 @@ conf:
         - dhcp_agent
         - l3_agent
         - lb_agent
-        - lbaas_agent
         - metadata_agent
         - ovs_agent
         - sriov_agent
@@ -1246,7 +1222,6 @@ conf:
         - dhcp_agent
         - l3_agent
         - lb_agent
-        - lbaas_agent
         - metadata_agent
         - ovs_agent
         - sriov_agent
@@ -1267,7 +1242,6 @@ conf:
         - dhcp_agent
         - l3_agent
         - lb_agent
-        - lbaas_agent
         - metadata_agent
         - ovs_agent
         - sriov_agent
@@ -1304,7 +1278,6 @@ conf:
         - dhcp_agent
         - l3_agent
         - lb_agent
-        - lbaas_agent
         - metadata_agent
         - ovs_agent
         - sriov_agent
@@ -1342,7 +1315,6 @@ conf:
         - dhcp_agent
         - l3_agent
         - lb_agent
-        - lbaas_agent
         - metadata_agent
         - ovs_agent
         - sriov_agent
@@ -1384,7 +1356,6 @@ conf:
       core_plugin: ml2
       # service_plugin can be: router, odl-router, empty for calico,
       # networking_ovn.l3.l3_ovn.OVNL3RouterPlugin for OVN
-      service_plugins: router,neutron_lbaas.services.loadbalancer.plugin.LoadBalancerPluginv2
       service_plugins: router
       allow_automatic_l3agent_failover: True
       l3_ha: True
@@ -1412,8 +1383,6 @@ conf:
       memcache_security_strategy: ENCRYPT
       auth_type: password
       auth_version: v3
-    service_providers:
-      service_provider: LOADBALANCERV2:Haproxy:neutron_lbaas.drivers.haproxy.plugin_driver.HaproxyOnHostPluginDriver:default
   plugins:
     ml2_conf:
       ml2:
@@ -1477,9 +1446,6 @@ conf:
       # 'network.backend' to sane defaults.
       interface_driver: null
       agent_mode: legacy
-  lbaas_agent:
-    DEFAULT:
-      interface_driver: openvswitch
   metering_agent: null
   metadata_agent:
     DEFAULT:
@@ -1666,8 +1632,6 @@ manifests:
   daemonset_dhcp_agent: true
   daemonset_l3_agent: true
   daemonset_lb_agent: true
-  # Deprecated in Queens
-  daemonset_lbaas_agent: false
   daemonset_metadata_agent: true
   daemonset_ovs_agent: true
   daemonset_sriov_agent: true
