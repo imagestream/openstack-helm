@@ -182,8 +182,6 @@ data:
 {{ include "helm-toolkit.utils.to_oslo_conf" $envAll.Values.conf.plugins.openvswitch_agent | indent 4 }}
   sriov_agent.ini: |
 {{ include "helm-toolkit.utils.to_oslo_conf" $envAll.Values.conf.plugins.sriov_agent | indent 4 }}
-  lbaas_agent.ini: |
-{{ include "helm-toolkit.utils.to_oslo_conf" $envAll.Values.conf.plugins.lbaas_agent | indent 4 }}
   dnsmasq.conf: ""
   neutron_sudoers: |
 {{ $envAll.Values.conf.neutron_sudoers | indent 4 }}
