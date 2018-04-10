@@ -206,11 +206,13 @@ pod:
 conf:
   octavia:
     DEFAULT:
+      debug: True
+    api_settings:
       #NOTE(portdirect): the bind port should not be defined, and is manipulated
       # via the endpoints section.
       bind_port: null
       bind_host: 0.0.0.0
-      workers: 1
+      api_v1_enabled: False
     keystone_authtoken:
       auth_type: password
       auth_version: v3
@@ -428,7 +430,7 @@ endpoints:
         default: 35357
       api:
         default: 80
-  loadbalancer:
+  load_balancer:
     name: octavia
     hosts:
       default: octavia-api

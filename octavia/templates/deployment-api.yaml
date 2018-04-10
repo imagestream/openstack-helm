@@ -63,10 +63,10 @@ spec:
                   - stop
           ports:
             - name: o-api
-              containerPort: {{ tuple "loadbalancer" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
+              containerPort: {{ tuple "load-balancer" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
           readinessProbe:
             tcpSocket:
-              port: {{ tuple "loadbalancer" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
+              port: {{ tuple "load-balancer" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
           volumeMounts:
             - name: etcoctavia
               mountPath: /etc/octavia
