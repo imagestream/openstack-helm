@@ -99,7 +99,8 @@ conf:
     cluster_formation:
       peer_discovery_backend: rabbit_peer_discovery_k8s
       k8s:
-        address_type: ip
+        # With the default "ip" type rabbit will lose its configuration data when the pod restarts and changes its IP -- Scott
+        address_type: hostname
       node_cleanup:
         interval: "10"
         only_log_warning: "false"

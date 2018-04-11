@@ -105,14 +105,15 @@ spec:
               protocol: TCP
               containerPort: {{ tuple "oslo_messaging" "internal" "amqp" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
           env:
-            - name: MY_POD_IP
+            - name: MY_POD_NAME
               valueFrom:
                 fieldRef:
-                  fieldPath: status.podIP
+                  apiVersion: v1
+                  fieldPath: metadata.name
             - name: RABBITMQ_USE_LONGNAME
               value: "true"
             - name: RABBITMQ_NODENAME
-              value: "rabbit@$(MY_POD_IP)"
+              value: rabbit@$(MY_POD_NAME).{{ tuple "oslo_messaging" "internal" . | include "helm-toolkit.endpoints.hostname_fqdn_endpoint_lookup" }}
             - name: K8S_SERVICE_NAME
               value: {{ tuple "oslo_messaging" "internal" . | include "helm-toolkit.endpoints.hostname_short_endpoint_lookup" | quote }}
             - name: RABBITMQ_ERLANG_COOKIE
