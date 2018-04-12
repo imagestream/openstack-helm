@@ -213,7 +213,12 @@ conf:
       bind_port: null
       bind_host: 0.0.0.0
       api_v1_enabled: False
+      auth_strategy: keystone
     keystone_authtoken:
+      auth_type: password
+      auth_version: v3
+      memcache_security_strategy: ENCRYPT
+    service_auth:
       auth_type: password
       auth_version: v3
       memcache_security_strategy: ENCRYPT
@@ -221,6 +226,17 @@ conf:
       max_retries: -1
     oslo_messaging:
       topic: octavia_prov
+    controller_worker:
+      amp_image_tag: amphora
+      amp_flavor_id: a10590b0-062f-49a6-b2af-5e8e152fc7cd
+      amp_boot_network_list: df07e819-e508-40de-947f-0428537b8e37
+      amp_secgroup_list: 0d8e5dcf-8cc9-447e-8a56-9c358bf90e71
+      compute_driver: compute_nova_driver
+      amphora_driver: amphora_haproxy_rest_driver
+      network_driver: allowed_address_pairs_driver
+      distributor_driver: single_VIP_amphora
+    certificates:
+      cert_manager: barbican_cert_manager
   rally_tests:
     tests:
 

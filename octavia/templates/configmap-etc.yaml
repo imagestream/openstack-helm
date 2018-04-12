@@ -63,6 +63,37 @@ limitations under the License.
 {{- tuple "load-balancer" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" | set .Values.conf.octavia.api_settings "bind_port" | quote | trunc 0 -}}
 {{- end -}}
 
+
+{{- if empty .Values.conf.octavia.service_auth.auth_url -}}
+{{- tuple "identity" "internal" "api" . | include "helm-toolkit.endpoints.keystone_endpoint_uri_lookup"| set .Values.conf.octavia.service_auth "auth_url" | quote | trunc 0 -}}
+{{- end -}}
+
+{{- if empty .Values.conf.octavia.service_auth.region_name -}}
+{{- set .Values.conf.octavia.service_auth "region_name" .Values.endpoints.identity.auth.octavia.region_name | quote | trunc 0 -}}
+{{- end -}}
+{{- if empty .Values.conf.octavia.service_auth.project_name -}}
+{{- set .Values.conf.octavia.service_auth "project_name" .Values.endpoints.identity.auth.octavia.project_name | quote | trunc 0 -}}
+{{- end -}}
+{{- if empty .Values.conf.octavia.service_auth.project_domain_name -}}
+{{- set .Values.conf.octavia.service_auth "project_domain_name" .Values.endpoints.identity.auth.octavia.project_domain_name | quote | trunc 0 -}}
+{{- end -}}
+{{- if empty .Values.conf.octavia.service_auth.user_domain_name -}}
+{{- set .Values.conf.octavia.service_auth "user_domain_name" .Values.endpoints.identity.auth.octavia.user_domain_name | quote | trunc 0 -}}
+{{- end -}}
+{{- if empty .Values.conf.octavia.service_auth.username -}}
+{{- set .Values.conf.octavia.service_auth "username" .Values.endpoints.identity.auth.octavia.username | quote | trunc 0 -}}
+{{- end -}}
+{{- if empty .Values.conf.octavia.service_auth.password -}}
+{{- set .Values.conf.octavia.service_auth "password" .Values.endpoints.identity.auth.octavia.password | quote | trunc 0 -}}
+{{- end -}}
+
+{{- if empty .Values.conf.octavia.service_auth.memcached_servers -}}
+{{- tuple "oslo_cache" "internal" "memcache" . | include "helm-toolkit.endpoints.host_and_port_endpoint_uri_lookup" | set .Values.conf.octavia.service_auth "memcached_servers" | quote | trunc 0 -}}
+{{- end -}}
+{{- if empty .Values.conf.octavia.service_auth.memcache_secret_key -}}
+{{- set .Values.conf.octavia.service_auth "memcache_secret_key" ( default ( randAlphaNum 64 ) .Values.endpoints.oslo_cache.auth.memcache_secret_key ) | quote | trunc 0 -}}
+{{- end -}}
+
 ---
 apiVersion: v1
 kind: ConfigMap
