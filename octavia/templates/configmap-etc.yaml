@@ -136,4 +136,6 @@ data:
 {{ include "helm-toolkit.utils.to_oslo_conf" .Values.conf.octavia | indent 4 }}
   anchor_config.json: |
 {{ toJson $envAll.Values.conf.anchor | indent 4 }}
+  policy.json: |
+{{ toJson .Values.conf.policy | indent 4 }}
 {{- end }}
