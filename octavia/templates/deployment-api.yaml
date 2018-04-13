@@ -78,6 +78,10 @@ spec:
               mountPath: /etc/octavia/octavia.conf
               subPath: octavia.conf
               readOnly: true
+            - name: octavia-etc
+              mountPath: /etc/octavia/policy.json
+              subPath: policy.json
+              readOnly: true
             - name: varcacheoctavia
               mountPath: /var/cache/octavia
 {{ if $mounts_octavia_api.volumeMounts }}{{ toYaml $mounts_octavia_api.volumeMounts | indent 12 }}{{ end }}
