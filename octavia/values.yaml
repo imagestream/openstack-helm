@@ -225,7 +225,7 @@ volume:
 conf:
   octavia:
     DEFAULT:
-      debug: True
+      debug: False
     api_settings:
       #NOTE(portdirect): the bind port should not be defined, and is manipulated
       # via the endpoints section.
