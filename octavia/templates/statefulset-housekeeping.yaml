@@ -54,6 +54,13 @@ spec:
 {{ tuple $envAll $envAll.Values.pod.resources.housekeeping | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
           command:
             - /tmp/octavia-housekeeping.sh
+            - start
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                  - /tmp/octavia-housekeeping.sh
+                  - stop
           volumeMounts:
             - name: etcoctavia
               mountPath: /etc/octavia

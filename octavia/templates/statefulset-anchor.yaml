@@ -1,0 +1,113 @@
+{{/*
+Copyright 2017 The Openstack-Helm Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+   http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/}}
+
+{{- if .Values.manifests.statefulset_anchor }}
+{{- $envAll := . }}
+{{- $dependencies := .Values.dependencies.static.anchor }}
+{{- $mounts_octavia_anchor := .Values.pod.mounts.octavia_anchor.octavia_anchor }}
+{{- $mounts_octavia_anchor_init := .Values.pod.mounts.octavia_anchor.init_container }}
+
+{{- $serviceAccountName := "octavia-anchor" }}
+{{ tuple $envAll $dependencies $serviceAccountName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
+---
+apiVersion: apps/v1beta1
+kind: StatefulSet
+metadata:
+  name: octavia-anchor
+spec:
+  replicas: {{ .Values.pod.replicas.anchor }}
+  serviceName: octavia-anchor
+  template:
+    metadata:
+      labels:
+{{ tuple $envAll "octavia" "anchor" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+      annotations:
+        configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
+        configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
+    spec:
+      serviceAccountName: {{ $serviceAccountName }}
+      affinity:
+{{ tuple $envAll "octavia" "anchor" | include "helm-toolkit.snippets.kubernetes_pod_anti_affinity" | indent 8 }}
+      nodeSelector:
+        {{ .Values.labels.anchor.node_selector_key }}: {{ .Values.labels.anchor.node_selector_value }}
+      securityContext:
+        runAsUser: 0
+      initContainers:
+{{ tuple $envAll $dependencies $mounts_octavia_anchor_init | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
+      containers:
+        - name: octavia-anchor
+          image: {{ .Values.images.tags.octavia_anchor }}
+          imagePullPolicy: {{ .Values.images.tags.pull_policy }}
+{{ tuple $envAll $envAll.Values.pod.resources.anchor | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
+          command:
+            - /tmp/anchor.sh
+            - start
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                  - /tmp/anchor.sh
+                  - stop
+          ports:
+            - name: pki-api
+              containerPort: {{ tuple "pki" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
+          readinessProbe:
+            tcpSocket:
+              port: {{ tuple "pki" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
+          env:
+            - name: ANCHOR_CERT_FILE
+              value: "{{ .Values.conf.anchor.signing_ca.local.cert_path }}"
+            - name: ANCHOR_KEY_FILE
+              value: "{{ .Values.conf.anchor.signing_ca.local.key_path }}"
+            - name: ANCHOR_CERT_VALID_DAYS
+              value: "{{ .Values.conf.anchor.signing_ca.local.cert_valid_days }}"
+          volumeMounts:
+            - name: octavia-bin
+              mountPath: /tmp/anchor.sh
+              subPath: anchor.sh
+              readOnly: true
+            - name: octavia-etc
+              mountPath: /config/config.json
+              subPath: anchor_config.json
+              readOnly: true
+            - name: anchor-keys
+              mountPath: /key
+{{ if $mounts_octavia_anchor.volumeMounts }}{{ toYaml $mounts_octavia_anchor.volumeMounts | indent 12 }}{{ end }}
+      volumes:
+        - name: octavia-bin
+          configMap:
+            name: octavia-bin
+            defaultMode: 0555
+        - name: octavia-etc
+          configMap:
+            name: octavia-etc
+            defaultMode: 0444
+        {{- if not .Values.volume.enabled }}
+        - name: anchor-keys
+          emptyDir: {}
+        {{- end }}
+{{- if .Values.volume.enabled }}
+  volumeClaimTemplates:
+    - metadata:
+        name: anchor-keys
+      spec:
+        accessModes: [ "ReadWriteOnce" ]
+        resources:
+          requests:
+            storage: {{ .Values.volume.size }}
+        storageClassName: {{ .Values.volume.class_name }}
+{{- end }}
+{{- end }}

@@ -54,6 +54,13 @@ spec:
 {{ tuple $envAll $envAll.Values.pod.resources.health_manager | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
           command:
             - /tmp/octavia-health-manager.sh
+            - start
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                  - /tmp/octavia-health-manager.sh
+                  - stop
           volumeMounts:
             - name: etcoctavia
               mountPath: /etc/octavia

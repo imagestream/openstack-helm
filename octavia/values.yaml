@@ -37,6 +37,9 @@ labels:
   health_manager:
     node_selector_key: openstack-control-plane
     node_selector_value: enabled
+  anchor:
+    node_selector_key: openstack-control-plane
+    node_selector_value: enabled
 
 release_group: null
 
@@ -54,6 +57,7 @@ images:
     octavia_worker: docker.io/kolla/ubuntu-source-octavia-worker:4.0.0
     octavia_housekeeping: docker.io/kolla/ubuntu-source-octavia-housekeeping:4.0.0
     octavia_health_manager:  docker.io/kolla/ubuntu-source-octavia-health-manager:4.0.0
+    octavia_anchor: docker.io/openstacksecurity/anchor:latest
     pull_policy: "IfNotPresent"
 
 bootstrap:
@@ -88,11 +92,15 @@ pod:
     octavia_tests:
       init_container: null
       octavia_tests:
+    octavia_anchor:
+      init_container: null
+      octavia_anchor:  
   replicas:
     api: 1
     worker: 1
     housekeeping: 1
     health_manager: 1
+    anchor: 1
   lifecycle:
     upgrades:
       deployments:
@@ -131,6 +139,13 @@ pod:
         memory: "1024Mi"
         cpu: "2000m"
     housekeeping:
+      requests:
+        memory: "128Mi"
+        cpu: "100m"
+      limits:
+        memory: "1024Mi"
+        cpu: "2000m"
+    anchor:
       requests:
         memory: "128Mi"
         cpu: "100m"
@@ -202,6 +217,10 @@ pod:
           memory: "1024Mi"
           cpu: "2000m"
 
+volume:
+  enabled: true
+  class_name: general
+  size: 1Gi
 
 conf:
   octavia:
@@ -226,17 +245,57 @@ conf:
       max_retries: -1
     oslo_messaging:
       topic: octavia_prov
+    health_manager:
+      bind_ip: 0.0.0.0
+      bind_port: null
+      controller_ip_port_list: null
+      heartbeat_key: null
     controller_worker:
       amp_image_tag: amphora
-      amp_flavor_id: a10590b0-062f-49a6-b2af-5e8e152fc7cd
-      amp_boot_network_list: df07e819-e508-40de-947f-0428537b8e37
-      amp_secgroup_list: 0d8e5dcf-8cc9-447e-8a56-9c358bf90e71
+      amp_flavor_id: null
+      amp_boot_network_list: null
+      amp_secgroup_list: null
+      amp_ssh_key_name: null
       compute_driver: compute_nova_driver
       amphora_driver: amphora_haproxy_rest_driver
       network_driver: allowed_address_pairs_driver
       distributor_driver: single_VIP_amphora
+      client_ca: /key/root-ca.crt
     certificates:
-      cert_manager: barbican_cert_manager
+      cert_generator: local_cert_generator
+      ca_certificate: /key/root-ca.crt
+      ca_private_key: /key/root-ca.key
+      signing_digest: sha256
+      storage_path: /key/certs
+      cert_valid_days: 18250
+    haproxy_amphora:
+      server_ca: /key/root-ca.crt
+      client_cert: /key/client.pem
+    anchor:
+      username: octavia
+  anchor:
+    authentication:
+      static:
+        backend: static
+    signing_ca:
+      local:
+        backend: anchor
+        cert_path: /key/root-ca.crt
+        key_path: /key/root-ca-unwrapped.key
+        cert_valid_days: 18250
+        output_path: /key/certs
+        signing_hash: sha256
+        valid_hours: 24
+    registration_authority:
+      default:
+        authentication: static
+        signing_ca: local
+        validators:
+          source_cidrs:
+            cidrs:
+              - 0.0.0.0/0
+    audit:
+      target: log
   rally_tests:
     tests:
 
@@ -253,6 +312,29 @@ network:
     node_port:
       enabled: false
       port: 30004
+  health_manager:
+    ingress:
+      public: false
+      classes:
+        namespace: "nginx"
+        cluster: "nginx-cluster"
+      annotations:
+        nginx.ingress.kubernetes.io/rewrite-target: /
+    external_policy_local: false
+    node_port:
+      enabled: true
+      port: 30005
+  pki_api:
+    ingress:
+      public: false
+      classes:
+        namespace: "nginx"
+        cluster: "nginx-cluster"
+      annotations:
+        nginx.ingress.kubernetes.io/rewrite-target: /
+    external_policy_local: false
+    node_port:
+      enabled: false
 
 dependencies:
   static:
@@ -304,6 +386,18 @@ dependencies:
           service: identity
         - endpoint: internal
           service: oslo_messaging
+    anchor:
+      jobs:
+      services:
+        - endpoint: internal
+          service: oslo_db
+        - endpoint: internal
+          service: identity
+    housekeeping:
+      jobs:
+        - octavia-db-sync
+        - octavia-ks-user
+        - octavia-ks-endpoints
     db_drop:
       services:
         - endpoint: internal
@@ -461,6 +555,33 @@ endpoints:
       api:
         default: 9876
         public: 80
+  health_manager:
+    name: health_manager
+    hosts:
+      default: octavia-health-manager
+      public: octavia-health
+    host_fqdn_override:
+      default: null
+    path:
+      default: null
+    scheme:
+      default: null
+    port:
+      health_manager:
+        default: 5555
+  pki:
+    name: anchor
+    hosts:
+      default: anchor-api
+    host_fqdn_override:
+      default: null
+    path:
+      default: /v1/sign/default
+    scheme:
+      default: 'http'
+    port:
+      api:
+        default: 5016
 
 manifests:
   configmap_bin: true
@@ -482,6 +603,9 @@ manifests:
   secret_rabbitmq: true
   service_ingress_api: true
   service_api: true
+  service_health_manager: true
+  service_anchor: false
   statefulset_worker: true
   statefulset_housekeeping: true
   statefulset_health_manager: true
+  statefulset_anchor: false

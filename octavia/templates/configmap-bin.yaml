@@ -45,10 +45,14 @@ data:
 {{ tuple "bin/_octavia-api.sh.tpl" . | include "helm-toolkit.utils.template" | indent 4 }}
   octavia-worker.sh: |
 {{ tuple "bin/_octavia-worker.sh.tpl" . | include "helm-toolkit.utils.template" | indent 4 }}
+  octavia-worker-init.sh: |
+{{ tuple "bin/_octavia-worker-init.sh.tpl" . | include "helm-toolkit.utils.template" | indent 4 }}
   octavia-health-manager.sh: |
 {{ tuple "bin/_octavia-health-manager.sh.tpl" . | include "helm-toolkit.utils.template" | indent 4 }}
   octavia-housekeeping.sh: |
 {{ tuple "bin/_octavia-housekeeping.sh.tpl" . | include "helm-toolkit.utils.template" | indent 4 }}
   rabbit-init.sh: |
 {{- include "helm-toolkit.scripts.rabbit_init" . | indent 4 }}
+  anchor.sh: |
+{{ tuple "bin/_anchor.sh.tpl" . | include "helm-toolkit.utils.template" | indent 4 }}
 {{- end }}

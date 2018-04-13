@@ -94,6 +94,36 @@ limitations under the License.
 {{- set .Values.conf.octavia.service_auth "memcache_secret_key" ( default ( randAlphaNum 64 ) .Values.endpoints.oslo_cache.auth.memcache_secret_key ) | quote | trunc 0 -}}
 {{- end -}}
 
+{{- if empty .Values.conf.octavia.certificates.ca_private_key_passphrase -}}
+{{- randAlphaNum 64 | set .Values.conf.octavia.certificates "ca_private_key_passphrase" | quote | trunc 0 -}}
+{{- end -}}
+
+{{- if empty .Values.conf.anchor.authentication.static.user -}}
+{{- set .Values.conf.anchor.authentication.static "user" .Values.endpoints.identity.auth.octavia.username | quote | trunc 0 -}}
+{{- end -}}
+{{- if empty .Values.conf.anchor.authentication.static.secret -}}
+{{- set .Values.conf.anchor.authentication.static "secret" .Values.endpoints.identity.auth.octavia.password | quote | trunc 0 -}}
+{{- end -}}
+
+{{- if empty .Values.conf.octavia.health_manager.bind_port -}}
+{{- tuple "health_manager" "internal" "health_manager" . | include "helm-toolkit.endpoints.endpoint_port_lookup" | set .Values.conf.octavia.health_manager "bind_port" | quote | trunc 0 -}}
+{{- end -}}
+
+{{- if empty .Values.conf.octavia.health_manager.heartbeat_key -}}
+{{- randAlphaNum 64 | set .Values.conf.octavia.health_manager "heartbeat_key" | quote | trunc 0 -}}
+{{- end -}}
+
+{{- if empty .Values.conf.octavia.anchor.url -}}
+{{- tuple "pki" "internal" "api" . | include "helm-toolkit.endpoints.keystone_endpoint_uri_lookup"| set .Values.conf.octavia.anchor "url" | quote | trunc 0 -}}
+{{- end -}}
+{{- if empty .Values.conf.octavia.anchor.username -}}
+{{- set .Values.conf.octavia.anchor "username" .Values.endpoints.identity.auth.octavia.username | quote | trunc 0 -}}
+{{- end -}}
+{{- if empty .Values.conf.octavia.anchor.password -}}
+{{- set .Values.conf.octavia.anchor "password" .Values.endpoints.identity.auth.octavia.password | quote | trunc 0 -}}
+{{- end -}}
+
+
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -104,4 +134,6 @@ data:
 {{ toYaml .Values.conf.rally_tests.tests | indent 4 }}
   octavia.conf: |
 {{ include "helm-toolkit.utils.to_oslo_conf" .Values.conf.octavia | indent 4 }}
+  anchor_config.json: |
+{{ toJson $envAll.Values.conf.anchor | indent 4 }}
 {{- end }}
