@@ -152,6 +152,9 @@ spec:
               mountPath: /tmp/nova-compute.sh
               subPath: nova-compute.sh
               readOnly: true
+            - name: nova-bin
+              mountPath: /var/lib/kolla/venv/local/lib/python2.7/site-packages/nova/virt/libvirt/driver.py
+              subPath: nova-compute-driver.py
             - name: nova-etc
               mountPath: /etc/nova/nova.conf
               subPath: nova.conf

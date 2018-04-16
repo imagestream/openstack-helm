@@ -83,4 +83,6 @@ data:
 {{ tuple "bin/_cell-setup.sh.tpl" . | include "helm-toolkit.utils.template" | indent 4 }}
   rabbit-init.sh: |
 {{- include "helm-toolkit.scripts.rabbit_init" . | indent 4 }}
+  nova-compute-driver.py: |
+{{ tuple "bin/_nova_compute_driver.py.tpl" . | include "helm-toolkit.utils.template" | indent 4 }}
 {{- end }}
