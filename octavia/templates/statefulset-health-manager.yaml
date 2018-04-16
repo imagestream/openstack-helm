@@ -74,6 +74,10 @@ spec:
               readOnly: true
             - name: varcacheoctavia
               mountPath: /var/cache/octavia
+            - name: octavia-server-ca-cert
+              mountPath: /etc/anchor/server-ca
+            - name: octavia-client-ca-cert
+              mountPath: /etc/anchor/client-ca
 {{ if $mounts_octavia_health_manager.volumeMounts }}{{ toYaml $mounts_octavia_health_manager.volumeMounts | indent 12 }}{{ end }}
       volumes:
         - name: etcoctavia
@@ -88,5 +92,13 @@ spec:
             defaultMode: 0444
         - name: varcacheoctavia
           emptyDir: {}
+        - name: octavia-server-ca-cert
+          secret:
+            secretName: octavia-server-ca-cert
+            defaultMode: 0444
+        - name: octavia-client-ca-cert
+          secret:
+            secretName: octavia-client-ca-cert
+            defaultMode: 0400
 {{- if $mounts_octavia_health_manager.volumes }}{{ toYaml $mounts_octavia_health_manager.volumes | indent 8 }}{{ end }}
 {{- end }}

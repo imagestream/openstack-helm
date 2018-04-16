@@ -47,32 +47,32 @@ spec:
         runAsUser: {{ .Values.pod.user.octavia.uid }}
       initContainers:
 {{ tuple $envAll $dependencies $mounts_octavia_worker_init | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
-        - name: octavia-worker-perms
-          image: {{ .Values.images.tags.octavia_worker }}
-          imagePullPolicy: {{ .Values.images.pull_policy }}
-          securityContext:
-            runAsUser: 0
-{{ tuple $envAll $envAll.Values.pod.resources.worker | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
-          command:
-            - /tmp/octavia-worker-init.sh
-          env:
-            - name: OCTAVIA_CERT_FILE
-              value: "{{ .Values.conf.octavia.certificates.ca_certificate }}"
-            - name: OCTAVIA_KEY_FILE
-              value: "{{ .Values.conf.octavia.certificates.ca_private_key }}"
-            - name: OCTAVIA_CERT_VALID_DAYS
-              value: "{{ .Values.conf.octavia.certificates.cert_valid_days }}"
-            - name: OCTAVIA_KEY_PASSPHRASE
-              value: "{{ .Values.conf.octavia.certificates.ca_private_key_passphrase }}"
-            - name: OCTAVIA_CLIENT_CERT_FILE
-              value: "{{ .Values.conf.octavia.haproxy_amphora.client_cert}}"
-          volumeMounts:
-            - name: octavia-bin
-              mountPath: /tmp/octavia-worker-init.sh
-              subPath: octavia-worker-init.sh
-              readOnly: true
-            - name: octavia-keys
-              mountPath: /key
+#        - name: octavia-worker-perms
+#          image: {{ .Values.images.tags.octavia_worker }}
+#          imagePullPolicy: {{ .Values.images.pull_policy }}
+#          securityContext:
+#            runAsUser: 0
+#{{ tuple $envAll $envAll.Values.pod.resources.worker | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
+#          command:
+#            - /tmp/octavia-worker-init.sh
+#          env:
+#            - name: OCTAVIA_CERT_FILE
+#              value: "{{ .Values.conf.octavia.certificates.ca_certificate }}"
+#            - name: OCTAVIA_KEY_FILE
+#              value: "{{ .Values.conf.octavia.certificates.ca_private_key }}"
+#            - name: OCTAVIA_CERT_VALID_DAYS
+#              value: "{{ .Values.conf.octavia.certificates.cert_valid_days }}"
+#            - name: OCTAVIA_KEY_PASSPHRASE
+#              value: "{{ .Values.conf.octavia.certificates.ca_private_key_passphrase }}"
+#            - name: OCTAVIA_CLIENT_CERT_FILE
+#              value: "{{ .Values.conf.octavia.haproxy_amphora.client_cert}}"
+#          volumeMounts:
+#            - name: octavia-bin
+#              mountPath: /tmp/octavia-worker-init.sh
+#              subPath: octavia-worker-init.sh
+#              readOnly: true
+#            - name: octavia-keys
+#              mountPath: /key
       containers:
         - name: octavia-worker
           image: {{ .Values.images.tags.octavia_worker }}
@@ -102,6 +102,10 @@ spec:
               mountPath: /var/cache/octavia
             - name: octavia-keys
               mountPath: /key
+            - name: octavia-server-ca-cert
+              mountPath: /etc/anchor/server-ca
+            - name: octavia-client-ca-cert
+              mountPath: /etc/anchor/client-ca
 {{ if $mounts_octavia_worker.volumeMounts }}{{ toYaml $mounts_octavia_worker.volumeMounts | indent 12 }}{{ end }}
       volumes:
         - name: etcoctavia
@@ -116,6 +120,15 @@ spec:
             defaultMode: 0444
         - name: varcacheoctavia
           emptyDir: {}
+        - name: octavia-server-ca-cert
+          secret:
+            secretName: octavia-server-ca-cert
+            defaultMode: 0444
+        # Client ca-cert unused for now since we cannot specify different client / server urls to the agent
+        - name: octavia-client-ca-cert
+          secret:
+            secretName: octavia-client-ca-cert
+            defaultMode: 0400
         {{- if not .Values.volume.enabled }}
         - name: octavia-keys
           emptyDir: {}

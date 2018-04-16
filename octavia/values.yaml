@@ -260,17 +260,17 @@ conf:
       amphora_driver: amphora_haproxy_rest_driver
       network_driver: allowed_address_pairs_driver
       distributor_driver: single_VIP_amphora
-      client_ca: /key/root-ca.crt
+      client_ca: /etc/anchor/server-ca/ca.crt
     certificates:
-      cert_generator: local_cert_generator
-      ca_certificate: /key/root-ca.crt
-      ca_private_key: /key/root-ca.key
+      cert_generator: anchor_cert_generator
+      ca_certificate: /etc/anchor/server-ca/ca.crt
+      ca_private_key: /etc/anchor/server-ca/ca.key
       signing_digest: sha256
       storage_path: /key/certs
       cert_valid_days: 18250
     haproxy_amphora:
-      server_ca: /key/root-ca.crt
-      client_cert: /key/client.pem
+      server_ca: /etc/anchor/server-ca/ca.crt
+      client_cert: null
     anchor:
       username: octavia
   anchor:
@@ -278,18 +278,33 @@ conf:
       static:
         backend: static
     signing_ca:
-      local:
+      server:
         backend: anchor
-        cert_path: /key/root-ca.crt
-        key_path: /key/root-ca-unwrapped.key
+        cert_path: /etc/anchor/server-ca/ca.crt
+        key_path: /etc/anchor/server-ca/ca.key
+        cert_valid_days: 18250
+        output_path: /key/certs
+        signing_hash: sha256
+        valid_hours: 24
+      client:
+        backend: anchor
+        cert_path: /etc/anchor/server-ca/ca.crt
+        key_path: /etc/anchor/server-ca/ca.key
         cert_valid_days: 18250
         output_path: /key/certs
         signing_hash: sha256
         valid_hours: 24
     registration_authority:
-      default:
+      server:
         authentication: static
-        signing_ca: local
+        signing_ca: server
+        validators:
+          source_cidrs:
+            cidrs:
+              - 0.0.0.0/0
+      client:
+        authentication: static
+        signing_ca: client
         validators:
           source_cidrs:
             cidrs:
@@ -588,7 +603,7 @@ endpoints:
     host_fqdn_override:
       default: null
     path:
-      default: /v1/sign/default
+      default: /v1/sign/server
     scheme:
       default: 'http'
     port:
@@ -600,6 +615,7 @@ manifests:
   configmap_etc: true
   deployment_api: true
   ingress_api: true
+  job_anchor_bootstrap: true
   job_bootstrap: false
   job_db_init: true
   job_db_sync: true
@@ -616,8 +632,8 @@ manifests:
   service_ingress_api: true
   service_api: true
   service_health_manager: true
-  service_anchor: false
+  service_anchor: true
   statefulset_worker: true
   statefulset_housekeeping: true
   statefulset_health_manager: true
-  statefulset_anchor: false
+  statefulset_anchor: true

@@ -67,22 +67,19 @@ spec:
           readinessProbe:
             tcpSocket:
               port: {{ tuple "pki" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
-          env:
-            - name: ANCHOR_CERT_FILE
-              value: "{{ .Values.conf.anchor.signing_ca.local.cert_path }}"
-            - name: ANCHOR_KEY_FILE
-              value: "{{ .Values.conf.anchor.signing_ca.local.key_path }}"
-            - name: ANCHOR_CERT_VALID_DAYS
-              value: "{{ .Values.conf.anchor.signing_ca.local.cert_valid_days }}"
           volumeMounts:
             - name: octavia-bin
               mountPath: /tmp/anchor.sh
               subPath: anchor.sh
               readOnly: true
             - name: octavia-etc
-              mountPath: /config/config.json
+              mountPath: /code/config.json
               subPath: anchor_config.json
               readOnly: true
+            - name: octavia-server-ca-cert
+              mountPath: /etc/anchor/server-ca
+            - name: octavia-client-ca-cert
+              mountPath: /etc/anchor/client-ca
             - name: anchor-keys
               mountPath: /key
 {{ if $mounts_octavia_anchor.volumeMounts }}{{ toYaml $mounts_octavia_anchor.volumeMounts | indent 12 }}{{ end }}
@@ -95,6 +92,14 @@ spec:
           configMap:
             name: octavia-etc
             defaultMode: 0444
+        - name: octavia-server-ca-cert
+          secret:
+            secretName: octavia-server-ca-cert
+            defaultMode: 0400
+        - name: octavia-client-ca-cert
+          secret:
+            secretName: octavia-client-ca-cert
+            defaultMode: 0400
         {{- if not .Values.volume.enabled }}
         - name: anchor-keys
           emptyDir: {}

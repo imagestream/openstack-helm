@@ -18,20 +18,17 @@ set -ex
 COMMAND="${@:-start}"
 
 function start () {
-#  if [ ! -f ${ANCHOR_CERT_FILE} ]; then
-#    if [ -f ${ANCHOR_KEY_FILE} ]; then
-#      openssl req -out ${ANCHOR_CERT_FILE} -key ${ANCHOR_KEY_FILE} \
-#              -subj "/CN=Anchor CA" -nodes -x509 -days ${ANCHOR_CERT_VALID_DAYS}
-#    else
-#      openssl req -out ${ANCHOR_CERT_FILE} -newkey rsa:4096 \
-#              -keyout ${ANCHOR_KEY_FILE} -sha256 \
-#              -subj "/CN=Anchor CA" -nodes -x509 -days ${ANCHOR_CERT_VALID_DAYS}
-#      chmod 0400 ${ANCHOR_KEY_FILE}
-#    fi
-#  fi
-#  cp /config/config.json /code/config.json
-  [ ! -d /key/certs ] && mkdir /key/certs
-  exec pecan serve config.py
+  cd /tmp
+
+  if ! kubectl -n ${DEPLOYMENT_NAMESPACE} get secrets ${KUBERNETES_SECRET_NAME} ; then
+    crt="/tmp/ca.crt"
+    key="/tmp/ca.key"
+    openssl req -out $crt -newkey rsa:4096 \
+            -keyout $key -sha256 -nodes \
+            -subj "/CN=Octavia ${CA} CA" -x509 -days 18250
+    kubectl -n ${DEPLOYMENT_NAMESPACE} create secret generic ${KUBERNETES_SECRET_NAME} --from-file=${crt} --from-file=${key}
+    rm -f $crt $key
+  fi
 }
 
 function stop () {
@@ -39,4 +36,3 @@ function stop () {
 }
 
 $COMMAND
-
