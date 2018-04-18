@@ -66,8 +66,10 @@ metadata:
   annotations:
     kubernetes.io/ingress.class: {{ index $envAll.Values.network $backendService "ingress" "classes" "cluster" | quote }}
 {{ toYaml (index $envAll.Values.network $backendService "ingress" "annotations") | indent 4 }}
+{{ toYaml (index $envAll.Values.network $backendService "ingress" "public_annotations") | indent 4 }}
 spec:
   rules:
 {{ $hostNameFullRules | include "helm-toolkit.manifests.ingress._host_rules" | indent 4}}
+{{ toYaml (index $envAll.Values.network $backendService "ingress" "public_spec") | indent 2 }}
 {{- end }}
 {{- end }}
