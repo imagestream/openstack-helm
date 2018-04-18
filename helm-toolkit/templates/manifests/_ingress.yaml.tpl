@@ -41,6 +41,8 @@ limitations under the License.
 {{- $backendName := tuple $backendServiceType "internal" $envAll | include "helm-toolkit.endpoints.hostname_short_endpoint_lookup" }}
 {{- $hostName := tuple $backendServiceType "public" $envAll | include "helm-toolkit.endpoints.hostname_short_endpoint_lookup" }}
 {{- $hostNameFull := tuple $backendServiceType "public" $envAll | include "helm-toolkit.endpoints.hostname_fqdn_endpoint_lookup" }}
+{{- $publicSpec := index $envAll.Values.network $backendService "ingress" "public_spec" }}
+{{- $publicAnnotations := index $envAll.Values.network $backendService "ingress" "public_annotations" }}
 ---
 apiVersion: extensions/v1beta1
 kind: Ingress
@@ -66,10 +68,10 @@ metadata:
   annotations:
     kubernetes.io/ingress.class: {{ index $envAll.Values.network $backendService "ingress" "classes" "cluster" | quote }}
 {{ toYaml (index $envAll.Values.network $backendService "ingress" "annotations") | indent 4 }}
-{{ toYaml (index $envAll.Values.network $backendService "ingress" "public_annotations") | indent 4 }}
+{{ if $publicAnnotations}}{{ toYaml ($publicAnnotations) | indent 4 }}{{ end }}
 spec:
   rules:
 {{ $hostNameFullRules | include "helm-toolkit.manifests.ingress._host_rules" | indent 4}}
-{{ toYaml (index $envAll.Values.network $backendService "ingress" "public_spec") | indent 2 }}
+{{ if $publicSpec }}{{ toYaml ($publicSpec) | indent 2 }}{{ end }}
 {{- end }}
 {{- end }}
