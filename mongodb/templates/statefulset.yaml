@@ -92,20 +92,19 @@ spec:
         configMap:
           name: mongodb-bin
           defaultMode: 0555
-{{- if not .Values.storage.pvc.enabled }}
+{{- if not .Values.volume.enabled }}
       - name: mongodb-data
         hostPath:
-          path: {{ .Values.storage.host.host_path }}
+          path: {{ .Values.volume.host.host_path }}
 {{- else }}
   volumeClaimTemplates:
-  - metadata:
-      name: mongodb-data
-      annotations:
-        {{ .Values.storage.pvc.class_path }}: {{ .Values.storage.pvc.class_name }}
-    spec:
-      accessModes: [ "ReadWriteOnce" ]
-      resources:
-        requests:
-          storage: {{ .Values.storage.pvc.size }}
+    - metadata:
+        name: mongodb-data
+      spec:
+        accessModes: [ "ReadWriteOnce" ]
+        resources:
+          requests:
+            storage: {{ .Values.volume.size }}
+        storageClassName: {{ .Values.volume.class_name }}
 {{- end }}
 {{- end }}

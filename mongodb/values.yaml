@@ -43,13 +43,11 @@ images:
     dep_check: quay.io/stackanetes/kubernetes-entrypoint:v0.3.0
   pull_policy: IfNotPresent
 
-# Cannot override this with a global yaml file -- conflicts with glance
-storage:
-  pvc:
-    enabled: true
-    size: 200Gi
-    class_name: general
-    class_path: volume.beta.kubernetes.io/storage-class
+volume:
+  chown_on_start: true
+  enabled: true
+  class_name: general
+  size: 5Gi
   host:
     host_path: /var/lib/openstack-helm/mongodb
 
