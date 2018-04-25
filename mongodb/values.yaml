@@ -43,10 +43,11 @@ images:
     dep_check: quay.io/stackanetes/kubernetes-entrypoint:v0.3.0
   pull_policy: IfNotPresent
 
+# Cannot override this with a global yaml file -- conflicts with glance
 storage:
   pvc:
-    enabled: false
-    size: 5Gi
+    enabled: true
+    size: 200Gi
     class_name: general
     class_path: volume.beta.kubernetes.io/storage-class
   host:
