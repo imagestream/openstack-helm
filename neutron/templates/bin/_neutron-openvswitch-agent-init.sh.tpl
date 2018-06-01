@@ -43,11 +43,11 @@ tunnel_interface="{{- .Values.network.interface.tunnel -}}"
 if [ -z "${tunnel_interface}" ] ; then
     # search for interface with default routing
     # If there is not default gateway, exit
-    tunnel_interface=$(ip -4 route list 0/0 | awk -F 'dev' '{ print $2; exit }' | awk '{ print $1 }') || exit 1
+    tunnel_interface=$(ip -4 route list 0/0 | awk -F 'dev' '{ print $2; exit }' | awk '{ print $1 }' | head -n 1) || exit 1
 fi
 
 # determine local-ip dynamically based on interface provided but only if tunnel_types is not null
-IP=$(ip a s $tunnel_interface | grep 'inet ' | awk '{print $2}' | awk -F "/" '{print $1}')
+IP=$(ip a s $tunnel_interface | grep 'inet ' | awk '{print $2}' | awk -F "/" '{print $1}' | head -n 1)
 cat <<EOF>/tmp/pod-shared/ml2-local-ip.ini
 [ovs]
 local_ip = $IP
