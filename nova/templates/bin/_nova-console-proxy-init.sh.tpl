@@ -33,11 +33,11 @@ fi
 if [ -z "${client_address}" ] ; then
     if [ -z "${client_interface}" ] ; then
         # search for interface with default routing
-        client_interface=$(ip r | grep default | awk '{print $5}')
+        client_interface=$(ip r | grep default | awk '{print $5}' | head -n 1)
     fi
 
     # determine client ip dynamically based on interface provided
-    client_address=$(ip a s $client_interface | grep 'inet ' | awk '{print $2}' | awk -F "/" '{print $1}')
+    client_address=$(ip a s $client_interface | grep 'inet ' | head -n 1 | awk '{print $2}' | awk -F "/" '{print $1}')
 fi
 
 if [ -z "${listen_ip}" ] ; then
