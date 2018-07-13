@@ -73,5 +73,3 @@ releasenotes/build
 logs/
 tmp/
 
-# Developer symlinks
-helm-toolkit

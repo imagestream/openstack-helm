@@ -20,34 +20,31 @@ set -ex
 {{- $rallyTests := index . 0 }}
 
 : "${RALLY_ENV_NAME:="openstack-helm"}"
+: "${OS_INTERFACE:="public"}"
 
 rally-manage db create
 cat > /tmp/rally-config.json << EOF
 {
     "type": "ExistingCloud",
-    "creds": {
-        "openstack": {
-            "auth_url": "${OS_AUTH_URL}",
-            "region_name": "${OS_REGION_NAME}",
-            "endpoint_type": "public",
-            "admin": {
-                "username": "${OS_USERNAME}",
-                "password": "${OS_PASSWORD}",
-                "project_name": "${OS_PROJECT_NAME}",
-                "user_domain_name": "${OS_USER_DOMAIN_NAME}",
-                "project_domain_name": "${OS_PROJECT_DOMAIN_NAME}"
-            },
-            "users": [
-                {
-                    "username": "${SERVICE_OS_USERNAME}",
-                    "password": "${SERVICE_OS_PASSWORD}",
-                    "project_name": "${SERVICE_OS_PROJECT_NAME}",
-                    "user_domain_name": "${SERVICE_OS_USER_DOMAIN_NAME}",
-                    "project_domain_name": "${SERVICE_OS_PROJECT_DOMAIN_NAME}"
-                }
-            ]
+    "auth_url": "${OS_AUTH_URL}",
+    "region_name": "${OS_REGION_NAME}",
+    "endpoint_type": "${OS_INTERFACE}",
+    "admin": {
+        "username": "${OS_USERNAME}",
+        "password": "${OS_PASSWORD}",
+        "project_name": "${OS_PROJECT_NAME}",
+        "user_domain_name": "${OS_USER_DOMAIN_NAME}",
+        "project_domain_name": "${OS_PROJECT_DOMAIN_NAME}"
+    },
+    "users": [
+        {
+            "username": "${SERVICE_OS_USERNAME}",
+            "password": "${SERVICE_OS_PASSWORD}",
+            "project_name": "${SERVICE_OS_PROJECT_NAME}",
+            "user_domain_name": "${SERVICE_OS_USER_DOMAIN_NAME}",
+            "project_domain_name": "${SERVICE_OS_PROJECT_DOMAIN_NAME}"
         }
-    }
+    ]
 }
 EOF
 rally deployment create --file /tmp/rally-config.json --name "${RALLY_ENV_NAME}"

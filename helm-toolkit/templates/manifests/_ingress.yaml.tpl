@@ -14,10 +14,131 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */}}
 
-# This function creates a manifest for a services ingress rules.
-# It can be used in charts dict created similar to the following:
-# {- $ingressOpts := dict "envAll" . "backendServiceType" "key-manager" -}
-# { $ingressOpts | include "helm-toolkit.manifests.ingress" }
+{{/*
+abstract: |
+  Creates a manifest for a services ingress rules.
+values: |
+  network:
+    api:
+      ingress:
+        public: true
+        classes:
+          namespace: "nginx"
+          cluster: "nginx-cluster"
+        annotations:
+          nginx.ingress.kubernetes.io/rewrite-target: /
+  secrets:
+    tls:
+      key_manager:
+        api:
+          public: barbican-tls-public
+  endpoints:
+    cluster_domain_suffix: cluster.local
+    key_manager:
+      name: barbican
+      hosts:
+        default: barbican-api
+        public: barbican
+      host_fqdn_override:
+        default: null
+        public:
+          host: barbican.openstackhelm.example
+          tls:
+            crt: |
+              FOO-CRT
+            key: |
+              FOO-KEY
+            ca: |
+              FOO-CA_CRT
+      path:
+        default: /
+      scheme:
+        default: http
+        public: https
+      port:
+        api:
+          default: 9311
+          public: 80
+usage: |
+  {{- include "helm-toolkit.manifests.ingress" ( dict "envAll" . "backendServiceType" "key-manager" "backendPort" "b-api" ) -}}
+return: |
+  ---
+  apiVersion: extensions/v1beta1
+  kind: Ingress
+  metadata:
+    name: barbican
+    annotations:
+      kubernetes.io/ingress.class: "nginx"
+      nginx.ingress.kubernetes.io/rewrite-target: /
+
+  spec:
+    rules:
+      - host: barbican
+        http:
+          paths:
+            - path: /
+              backend:
+                serviceName: barbican-api
+                servicePort: b-api
+      - host: barbican.default
+        http:
+          paths:
+            - path: /
+              backend:
+                serviceName: barbican-api
+                servicePort: b-api
+      - host: barbican.default.svc.cluster.local
+        http:
+          paths:
+            - path: /
+              backend:
+                serviceName: barbican-api
+                servicePort: b-api
+  ---
+  apiVersion: extensions/v1beta1
+  kind: Ingress
+  metadata:
+    name: barbican-namespace-fqdn
+    annotations:
+      kubernetes.io/ingress.class: "nginx"
+      nginx.ingress.kubernetes.io/rewrite-target: /
+
+  spec:
+    tls:
+      - secretName: barbican-tls-public
+        hosts:
+          - barbican.openstackhelm.example
+    rules:
+      - host: barbican.openstackhelm.example
+        http:
+          paths:
+            - path: /
+              backend:
+                serviceName: barbican-api
+                servicePort: b-api
+  ---
+  apiVersion: extensions/v1beta1
+  kind: Ingress
+  metadata:
+    name: barbican-cluster-fqdn
+    annotations:
+      kubernetes.io/ingress.class: "nginx-cluster"
+      nginx.ingress.kubernetes.io/rewrite-target: /
+
+  spec:
+    tls:
+      - secretName: barbican-tls-public
+        hosts:
+          - barbican.openstackhelm.example
+    rules:
+      - host: barbican.openstackhelm.example
+        http:
+          paths:
+            - path: /
+              backend:
+                serviceName: barbican-api
+                servicePort: b-api
+*/}}
 
 {{- define "helm-toolkit.manifests.ingress._host_rules" -}}
 {{- $vHost := index . "vHost" -}}
@@ -41,8 +162,6 @@ limitations under the License.
 {{- $backendName := tuple $backendServiceType "internal" $envAll | include "helm-toolkit.endpoints.hostname_short_endpoint_lookup" }}
 {{- $hostName := tuple $backendServiceType "public" $envAll | include "helm-toolkit.endpoints.hostname_short_endpoint_lookup" }}
 {{- $hostNameFull := tuple $backendServiceType "public" $envAll | include "helm-toolkit.endpoints.hostname_fqdn_endpoint_lookup" }}
-{{- $publicSpec := index $envAll.Values.network $backendService "ingress" "public_spec" }}
-{{- $publicAnnotations := index $envAll.Values.network $backendService "ingress" "public_annotations" }}
 ---
 apiVersion: extensions/v1beta1
 kind: Ingress
@@ -58,20 +177,32 @@ spec:
 {{ $hostRules | include "helm-toolkit.manifests.ingress._host_rules" | indent 4}}
 {{- end }}
 {{- if not ( hasSuffix ( printf ".%s.svc.%s" $envAll.Release.Namespace $envAll.Values.endpoints.cluster_domain_suffix) $hostNameFull) }}
+{{- range $key2, $ingressController := tuple "namespace" "cluster" }}
 {{- $hostNameFullRules := dict "vHost" $hostNameFull "backendName" $backendName "backendPort" $backendPort }}
-{{ $hostNameFullRules | include "helm-toolkit.manifests.ingress._host_rules" | indent 4}}
 ---
 apiVersion: extensions/v1beta1
 kind: Ingress
 metadata:
-  name: {{ printf "%s-%s" $ingressName "fqdn" }}
+  name: {{ printf "%s-%s-%s" $ingressName $ingressController "fqdn" }}
   annotations:
-    kubernetes.io/ingress.class: {{ index $envAll.Values.network $backendService "ingress" "classes" "cluster" | quote }}
+    kubernetes.io/ingress.class: {{ index $envAll.Values.network $backendService "ingress" "classes" $ingressController | quote }}
 {{ toYaml (index $envAll.Values.network $backendService "ingress" "annotations") | indent 4 }}
-{{ if $publicAnnotations}}{{ toYaml ($publicAnnotations) | indent 4 }}{{ end }}
 spec:
+{{- $host := index $envAll.Values.endpoints ( $backendServiceType | replace "-" "_" ) "host_fqdn_override" }}
+{{- if hasKey $host "public" }}
+{{- if kindIs "map" $host.public }}
+{{- if hasKey $host.public "tls" }}
+{{- if and $host.public.tls.key $host.public.tls.crt }}
+  tls:
+    - secretName: {{ index $envAll.Values.secrets "tls" ( $backendServiceType | replace "-" "_" ) $backendService "public" }}
+      hosts:
+        - {{ index $hostNameFullRules "vHost" }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}
   rules:
 {{ $hostNameFullRules | include "helm-toolkit.manifests.ingress._host_rules" | indent 4}}
-{{ if $publicSpec }}{{ toYaml ($publicSpec) | indent 2 }}{{ end }}
+{{- end }}
 {{- end }}
 {{- end }}
