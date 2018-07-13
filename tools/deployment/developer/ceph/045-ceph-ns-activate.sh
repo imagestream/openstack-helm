@@ -16,12 +16,11 @@
 
 set -xe
 
-#NOTE: Pull images and lint chart
-make pull-images ceph
+#NOTE: Lint and package chart
+make ceph-provisioners
 
 #NOTE: Deploy command
 : ${OSH_EXTRA_HELM_ARGS:=""}
-CEPH_FS_ID="$(cat /tmp/ceph-fs-uuid.txt)"
 tee /tmp/ceph-openstack-config.yaml <<EOF
 endpoints:
   identity:
@@ -45,11 +44,8 @@ bootstrap:
 conf:
   rgw_ks:
     enabled: true
-  ceph:
-    global:
-      fsid: ${CEPH_FS_ID}
 EOF
-helm upgrade --install ceph-openstack-config ./ceph \
+helm upgrade --install ceph-openstack-config ./ceph-provisioners \
   --namespace=openstack \
   --values=/tmp/ceph-openstack-config.yaml \
   ${OSH_EXTRA_HELM_ARGS} \

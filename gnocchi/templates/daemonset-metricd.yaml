@@ -16,19 +16,23 @@ limitations under the License.
 
 {{- if .Values.manifests.daemonset_metricd }}
 {{- $envAll := . }}
-{{- $dependencies := .Values.dependencies.static.metricd }}
 
 {{- $mounts_gnocchi_metricd := .Values.pod.mounts.gnocchi_metricd.gnocchi_metricd }}
 {{- $mounts_gnocchi_metricd_init := .Values.pod.mounts.gnocchi_metricd.init_container }}
 
 {{- $serviceAccountName := "gnocchi-metricd" }}
-{{ tuple $envAll $dependencies $serviceAccountName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
+{{ tuple $envAll "metricd" $serviceAccountName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
 ---
-apiVersion: extensions/v1beta1
+apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: gnocchi-metricd
+  labels:
+{{ tuple $envAll "gnocchi" "metricd" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 4 }}
 spec:
+  selector:
+    matchLabels:
+{{ tuple $envAll "gnocchi" "metricd" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 6 }}
 {{ tuple $envAll "metricd" | include "helm-toolkit.snippets.kubernetes_upgrades_daemonset" | indent 2 }}
   template:
     metadata:
@@ -42,10 +46,9 @@ spec:
       nodeSelector:
         {{ .Values.labels.metricd.node_selector_key }}: {{ .Values.labels.metricd.node_selector_value }}
       initContainers:
-{{ tuple $envAll $dependencies $mounts_gnocchi_metricd_init | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
+{{ tuple $envAll "metricd" $mounts_gnocchi_metricd_init | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
         - name: ceph-keyring-placement
-          image: {{ .Values.images.tags.gnocchi_api }}
-          imagePullPolicy: {{ .Values.images.pull_policy }}
+{{ tuple $envAll "gnocchi_api" | include "helm-toolkit.snippets.image" | indent 10 }}
           command:
             - /tmp/ceph-keyring.sh
           volumeMounts:
@@ -61,8 +64,7 @@ spec:
               readOnly: true
       containers:
         - name: gnocchi-metricd
-          image: {{ .Values.images.tags.gnocchi_metricd }}
-          imagePullPolicy: {{ .Values.images.pull_policy }}
+{{ tuple $envAll "gnocchi_metricd" | include "helm-toolkit.snippets.image" | indent 10 }}
 {{ tuple $envAll $envAll.Values.pod.resources.metricd | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
           command:
             - /tmp/gnocchi-metricd.sh

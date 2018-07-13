@@ -15,19 +15,22 @@
 {{- if .Values.manifests.deployment }}
 {{- $envAll := . }}
 
-{{- $dependencies := .Values.dependencies.static.etcd }}
-
 {{- $rcControllerName := printf "%s-%s" $envAll.Release.Name "etcd"  }}
 {{- $configMapBinName := printf "%s-%s" $envAll.Release.Name "etcd-bin"  }}
 
-{{ tuple $envAll $dependencies $rcControllerName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
+{{ tuple $envAll "etcd" $rcControllerName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
 ---
-apiVersion: apps/v1beta1
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ $rcControllerName | quote }}
+  labels:
+{{ tuple $envAll "etcd" "server" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 4 }}
 spec:
   replicas: {{ .Values.pod.replicas.etcd }}
+  selector:
+    matchLabels:
+{{ tuple $envAll "etcd" "server" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 6 }}
 {{ tuple $envAll | include "helm-toolkit.snippets.kubernetes_upgrades_deployment" | indent 2 }}
   template:
     metadata:
@@ -40,11 +43,10 @@ spec:
       nodeSelector:
         {{ .Values.labels.server.node_selector_key }}: {{ .Values.labels.server.node_selector_value }}
       initContainers:
-{{ tuple $envAll $dependencies list | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
+{{ tuple $envAll "etcd" list | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
       containers:
         - name: etcd
-          image: {{ .Values.images.tags.etcd }}
-          imagePullPolicy: {{ .Values.images.pull_policy }}
+{{ tuple $envAll "etcd" | include "helm-toolkit.snippets.image" | indent 10 }}
           command:
             - /tmp/etcd.sh
           ports:

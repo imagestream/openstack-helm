@@ -16,20 +16,24 @@ limitations under the License.
 
 {{- if .Values.manifests.deployment_consoleauth }}
 {{- $envAll := . }}
-{{- $dependencies := .Values.dependencies.static.consoleauth }}
 
 {{- $mounts_nova_consoleauth := .Values.pod.mounts.nova_consoleauth.nova_conductor }}
 {{- $mounts_nova_consoleauth_init := .Values.pod.mounts.nova_consoleauth.init_container }}
 
 {{- $serviceAccountName := "nova-consoleauth" }}
-{{ tuple $envAll $dependencies $serviceAccountName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
+{{ tuple $envAll "consoleauth" $serviceAccountName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
 ---
-apiVersion: apps/v1beta1
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: nova-consoleauth
+  labels:
+{{ tuple $envAll "nova" "consoleauth" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 4 }}
 spec:
   replicas: {{ .Values.pod.replicas.consoleauth }}
+  selector:
+    matchLabels:
+{{ tuple $envAll "nova" "consoleauth" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 6 }}
 {{ tuple $envAll | include "helm-toolkit.snippets.kubernetes_upgrades_deployment" | indent 2 }}
   template:
     metadata:
@@ -45,11 +49,10 @@ spec:
       nodeSelector:
         {{ .Values.labels.consoleauth.node_selector_key }}: {{ .Values.labels.consoleauth.node_selector_value }}
       initContainers:
-{{ tuple $envAll $dependencies $mounts_nova_consoleauth_init | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
+{{ tuple $envAll "consoleauth" $mounts_nova_consoleauth_init | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
       containers:
         - name: nova-consoleauth
-          image: {{ .Values.images.tags.nova_consoleauth }}
-          imagePullPolicy: {{ .Values.images.pull_policy }}
+{{ tuple $envAll "nova_consoleauth" | include "helm-toolkit.snippets.image" | indent 10 }}
 {{ tuple $envAll $envAll.Values.pod.resources.consoleauth | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
           securityContext:
             runAsUser: {{ .Values.pod.user.nova.uid }}
@@ -63,6 +66,10 @@ spec:
             - name: nova-etc
               mountPath: /etc/nova/nova.conf
               subPath: nova.conf
+              readOnly: true
+            - name: nova-etc
+              mountPath: {{ .Values.conf.nova.DEFAULT.log_config_append }}
+              subPath: {{ base .Values.conf.nova.DEFAULT.log_config_append }}
               readOnly: true
             - name: nova-etc
               mountPath: /etc/nova/policy.yaml

@@ -16,12 +16,14 @@
 
 set -xe
 
-#NOTE: Pull images and lint chart
-make pull-images ceph
+#NOTE: Lint and package chart
+for CHART in ceph-mon ceph-osd ceph-client ceph-provisioners; do
+  make "${CHART}"
+done
 
 #NOTE: Deploy command
 : ${OSH_EXTRA_HELM_ARGS:=""}
-uuidgen > /tmp/ceph-fs-uuid.txt
+[ -s /tmp/ceph-fs-uuid.txt ] || uuidgen > /tmp/ceph-fs-uuid.txt
 CEPH_FS_ID="$(cat /tmp/ceph-fs-uuid.txt)"
 #NOTE(portdirect): to use RBD devices with Ubuntu kernels < 4.5 this
 # should be set to 'hammer'
@@ -153,20 +155,29 @@ conf:
         journal:
           type: directory
           location: /var/lib/openstack-helm/ceph/osd/journal-one
+
+pod:
+  replicas:
+    mds: 1
+    mgr: 1
+    rgw: 1
 EOF
-helm upgrade --install ceph ./ceph \
-  --namespace=ceph \
-  --values=/tmp/ceph.yaml \
-  ${OSH_EXTRA_HELM_ARGS} \
-  ${OSH_EXTRA_HELM_ARGS_CEPH_DEPLOY}
 
-#NOTE: Wait for deploy
-./tools/deployment/common/wait-for-pods.sh ceph
+for CHART in ceph-mon ceph-osd ceph-client ceph-provisioners; do
+  helm upgrade --install ${CHART} ./${CHART} \
+    --namespace=ceph \
+    --values=/tmp/ceph.yaml \
+    ${OSH_EXTRA_HELM_ARGS} \
+    ${OSH_EXTRA_HELM_ARGS_CEPH_DEPLOY}
 
-#NOTE: Validate deploy
-MON_POD=$(kubectl get pods \
-  --namespace=ceph \
-  --selector="application=ceph" \
-  --selector="component=mon" \
-  --no-headers | awk '{ print $1; exit }')
-kubectl exec -n ceph ${MON_POD} -- ceph -s
+  #NOTE: Wait for deploy
+  ./tools/deployment/common/wait-for-pods.sh ceph
+
+  #NOTE: Validate deploy
+  MON_POD=$(kubectl get pods \
+    --namespace=ceph \
+    --selector="application=ceph" \
+    --selector="component=mon" \
+    --no-headers | awk '{ print $1; exit }')
+  kubectl exec -n ceph ${MON_POD} -- ceph -s
+done

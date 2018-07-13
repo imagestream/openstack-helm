@@ -16,6 +16,29 @@
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
+release_group: null
+
+images:
+  tags:
+    bootstrap: "docker.io/osixia/openldap:1.2.0"
+    ldap: "docker.io/osixia/openldap:1.2.0"
+    dep_check: quay.io/stackanetes/kubernetes-entrypoint:v0.3.1
+    image_repo_sync: docker.io/docker:17.07.0
+  pull_policy: "IfNotPresent"
+  local_registry:
+    active: false
+    exclude:
+      - dep_check
+      - image_repo_sync
+
+labels:
+  server:
+    node_selector_key: openstack-control-plane
+    node_selector_value: enabled
+  job:
+    node_selector_key: openstack-control-plane
+    node_selector_value: enabled
+
 pod:
   affinity:
     anti:
@@ -50,19 +73,27 @@ pod:
         limits:
           memory: "1024Mi"
           cpu: "2000m"
+      image_repo_sync:
+        requests:
+          memory: "128Mi"
+          cpu: "100m"
+        limits:
+          memory: "1024Mi"
+          cpu: "2000m"
   mounts:
     ldap_data_load:
       init_container: null
       ldap_data_load:
 
-images:
-  tags:
-    bootstrap: "docker.io/osixia/openldap:1.2.0"
-    ldap: "docker.io/osixia/openldap:1.2.0"
-    dep_check: quay.io/stackanetes/kubernetes-entrypoint:v0.3.0
-  pull_policy: IfNotPresent
-
 dependencies:
+  dynamic:
+    common:
+      local_image_registry:
+        jobs:
+          - ldap-image-repo-sync
+        services:
+          - endpoint: node
+            service: local_image_registry
   static:
     ldap:
       jobs: null
@@ -70,29 +101,42 @@ dependencies:
       services:
         - endpoint: internal
           service: ldap
+    server:
+      jobs:
+        - ldap-load-data
+      services:
+        - endpoint: internal
+          service: ldap
+    image_repo_sync:
+      services:
+        - endpoint: internal
+          service: local_image_registry
 
-storage:
-  pvc:
-    enabled: true
-    size: 2Gi
-    class_name: general
+volume:
+  enabled: true
+  size: 2Gi
+  class_name: general
   host:
     data_path: /data/openstack-helm/ldap
     config_path: /data/openstack-helm/config
-
-labels:
-  server:
-    node_selector_key: openstack-control-plane
-    node_selector_value: enabled
-  job:
-    node_selector_key: openstack-control-plane
-    node_selector_value: enabled
 
 bootstrap:
   enabled: false
 
 endpoints:
   cluster_domain_suffix: cluster.local
+  local_image_registry:
+    name: docker-registry
+    namespace: docker-registry
+    hosts:
+      default: localhost
+      internal: docker-registry
+      node: localhost
+    host_fqdn_override:
+      default: null
+    port:
+      registry:
+        node: 5000
   ldap:
     hosts:
       default: ldap
@@ -103,6 +147,10 @@ endpoints:
     port:
       ldap:
         default: 389
+    auth:
+      username: admin
+      domainname: cluster.local
+      password: password
 
 data:
   sample: |
@@ -175,27 +223,10 @@ data:
     description: Red Team
     memberUID: uid=alice,ou=People,dc=cluster,dc=local
 
-secrets:
-  identity:
-    admin: admin
-    ldap: ldap
-
-dependencies:
-  static:
-    server:
-      jobs:
-        - ldap-load-data
-      services:
-        - endpoint: internal
-          service: ldap
-
-openldap:
-  domain: cluster.local
-  password: password
-
 manifests:
   configmap_bin: true
   configmap_etc: true
+  job_image_repo_sync: true
   job_bootstrap: true
   statefulset: true
   service: true

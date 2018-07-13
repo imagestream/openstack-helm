@@ -16,9 +16,10 @@ apiVersion: v1
 description: OpenStack-Helm Gnocchi
 name: gnocchi
 version: 0.1.0
-home: https://docs.openstack.org/developer/gnocchi
+home: https://gnocchi.xyz/
+icon: https://gnocchi.xyz/_static/gnocchi-logo.png
 sources:
-  - https://git.openstack.org/cgit/openstack/gnocchi
+  - https://github.com/gnocchixyz/gnocchi
   - https://git.openstack.org/cgit/openstack/openstack-helm
 maintainers:
   - name: OpenStack-Helm Authors

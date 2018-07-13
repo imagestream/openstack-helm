@@ -20,7 +20,7 @@ limitations under the License.
 apiVersion: policy/v1beta1
 kind: PodDisruptionBudget
 metadata:
-  name: {{ tuple "oslo_db" "internal" . | include "helm-toolkit.endpoints.hostname_short_endpoint_lookup" }}
+  name: mariadb-server
 spec:
   minAvailable: {{ .Values.pod.lifecycle.disruption_budget.mariadb.min_available }}
   selector:

@@ -24,14 +24,24 @@ labels:
   prometheus_rabbitmq_exporter:
     node_selector_key: openstack-control-plane
     node_selector_value: enabled
+  test:
+    node_selector_key: openstack-control-plane
+    node_selector_value: enabled
 
 images:
   tags:
     prometheus_rabbitmq_exporter: docker.io/kbudde/rabbitmq-exporter:v0.21.0
     prometheus_rabbitmq_exporter_helm_tests: docker.io/openstackhelm/heat:newton
-    rabbitmq: docker.io/rabbitmq:3.7.3
-    dep_check: quay.io/stackanetes/kubernetes-entrypoint:v0.3.0
+    rabbitmq: docker.io/rabbitmq:3.7.4
+    dep_check: quay.io/stackanetes/kubernetes-entrypoint:v0.3.1
+    scripted_test: docker.io/rabbitmq:3.7.4-management
+    image_repo_sync: docker.io/docker:17.07.0
   pull_policy: "IfNotPresent"
+  local_registry:
+    active: false
+    exclude:
+      - dep_check
+      - image_repo_sync
 
 pod:
   affinity:
@@ -81,6 +91,13 @@ pod:
         requests:
           memory: "128Mi"
           cpu: "100m"
+      image_repo_sync:
+        requests:
+          memory: "128Mi"
+          cpu: "100m"
+        limits:
+          memory: "1024Mi"
+          cpu: "2000m"
 
 conf:
   enabled_plugins:
@@ -94,21 +111,28 @@ conf:
   rabbitmq:
     listeners:
       tcp:
-        #NOTE(portdirect): This is always defined via the endpoints section.
+        # NOTE(portdirect): This is always defined via the endpoints section.
         1: null
     cluster_formation:
       peer_discovery_backend: rabbit_peer_discovery_k8s
       k8s:
-        # With the default "ip" type rabbit will lose its configuration data when the pod restarts and changes its IP -- Scott
         address_type: hostname
       node_cleanup:
         interval: "10"
-        only_log_warning: "false"
+        only_log_warning: "true"
     cluster_partition_handling: autoheal
     queue_master_locator: min-masters
     loopback_users.guest: "false"
 
 dependencies:
+  dynamic:
+    common:
+      local_image_registry:
+        jobs:
+          - rabbitmq-image-repo-sync
+        services:
+          - endpoint: node
+            service: local_image_registry
   static:
     prometheus_rabbitmq_exporter:
       services:
@@ -122,6 +146,14 @@ dependencies:
           service: monitoring
     rabbitmq:
       jobs: null
+    tests:
+      services:
+        - endpoint: internal
+          service: oslo_messaging
+    image_repo_sync:
+      services:
+        - endpoint: internal
+          service: local_image_registry
 
 monitoring:
   prometheus:
@@ -130,6 +162,14 @@ monitoring:
       scrape: true
 
 network:
+  management:
+    ingress:
+      public: true
+      classes:
+        namespace: "nginx"
+        cluster: "nginx-cluster"
+      annotations:
+        nginx.ingress.kubernetes.io/rewrite-target: /
   prometheus_rabbitmq_exporter:
     port: 9095
 
@@ -138,6 +178,18 @@ network:
 # required by this chart
 endpoints:
   cluster_domain_suffix: cluster.local
+  local_image_registry:
+    name: docker-registry
+    namespace: docker-registry
+    hosts:
+      default: localhost
+      internal: docker-registry
+      node: localhost
+    host_fqdn_override:
+      default: null
+    port:
+      registry:
+        node: 5000
   monitoring:
     name: prometheus
     namespace: null
@@ -162,15 +214,28 @@ endpoints:
         password: password
     hosts:
       default: rabbitmq
+      # NOTE(portdirect): If left empty, the release name sha suffixed with dsv
+      # will be used for to produce a unique hostname for clustering
+      # and discovery.
+      discovery: null
+      # NOTE(portdirect): the public host is only used to the management WUI
+      # If left empty, the release name sha suffixed with mgr, will be used to
+      # produce an unique hostname.
+      public: null
     host_fqdn_override:
       default: null
     path: /
     scheme: rabbit
     port:
+      clustering:
+        # NOTE(portdirect): the value for this port is driven by amqp+20000
+        # it should not be set manually.
+        default: null
       amqp:
         default: 5672
       http:
         default: 15672
+        public: 80
   prometheus_rabbitmq_exporter:
     namespace: null
     hosts:
@@ -189,15 +254,20 @@ volume:
   chown_on_start: true
   enabled: true
   class_name: general
-  size: 1Gi
+  size: 256Mi
 
 manifests:
   configmap_bin: true
   configmap_etc: true
+  ingress_management: true
+  job_image_repo_sync: true
+  pod_test: true
   monitoring:
     prometheus:
       configmap_bin: true
       deployment_exporter: true
       service_exporter: true
+  service_discovery: true
+  service_ingress_management: true
   service: true
   statefulset: true

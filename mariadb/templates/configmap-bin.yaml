@@ -22,8 +22,18 @@ kind: ConfigMap
 metadata:
   name: mariadb-bin
 data:
+{{- if .Values.images.local_registry.active }}
+  image-repo-sync.sh: |
+{{- include "helm-toolkit.scripts.image_repo_sync" . | indent 4 }}
+{{- end }}
+  mariadb-ingress-controller.sh: |
+{{ tuple "bin/_mariadb-ingress-controller.sh.tpl" . | include "helm-toolkit.utils.template" | indent 4 }}
+  mariadb-ingress-error-pages.sh: |
+{{ tuple "bin/_mariadb-ingress-error-pages.sh.tpl" . | include "helm-toolkit.utils.template" | indent 4 }}
   readiness.sh: |
 {{ tuple "bin/_readiness.sh.tpl" . | include "helm-toolkit.utils.template" | indent 4 }}
   start.sh: |
 {{ tuple "bin/_start.sh.tpl" . | include "helm-toolkit.utils.template" | indent 4 }}
+  stop.sh: |
+{{ tuple "bin/_stop.sh.tpl" . | include "helm-toolkit.utils.template" | indent 4 }}
 {{- end }}

@@ -39,7 +39,13 @@ images:
     neutron_sriov_agent: docker.io/openstackhelm/neutron:ocata-sriov-1804
     neutron_sriov_agent_init: docker.io/openstackhelm/neutron:ocata-sriov-1804
     dep_check: quay.io/stackanetes/kubernetes-entrypoint:v0.3.0
+    image_repo_sync: docker.io/docker:17.07.0
   pull_policy: "IfNotPresent"
+  local_registry:
+    active: false
+    exclude:
+      - dep_check
+      - image_repo_sync
 
 labels:
   agent:
@@ -80,18 +86,11 @@ network:
   # possible options: openvswitch, linuxbridge, sriov
   backend:
     - openvswitch
-  external_bridge: br-ex
-  ip_address: 0.0.0.0
-  interface:
-  # External interface will be automatically added to external_bridge.
-  # Tunnel interface will be used for VXLAN tunneling. If null
-  # (default) there is a fallback mechanism to search for interface
-  # with default routing.
-    external: null
-    tunnel: null
-  # auto_bridge_add is a table of "bridge: interface" pairs, by
-  # default empty
-  auto_bridge_add: {}
+  # NOTE(Portdirect): Share network namespaces with the host,
+  # allowing agents to be restarted without packet loss and simpler
+  # debugging. This feature requires mount propagation support.
+  share_namespaces: true
+  # auto_bridge_add is a table of "bridge: interface" pairs
   # To automatically add a physical interfaces to a specific bridges,
   # for example eth3 to bridge br-physnet1, if0 to br0 and iface_two
   # to br1 do something like:
@@ -100,6 +99,14 @@ network:
   #   br-physnet1: eth3
   #   br0: if0
   #   br1: iface_two
+  # br-ex will be added by default
+  auto_bridge_add:
+    br-ex: null
+  interface:
+  # Tunnel interface will be used for VXLAN tunneling. If null
+  # (default) there is a fallback mechanism to search for interface
+  # with default routing.
+    tunnel: null
   sriov:
   # To perform setup of network interfaces using the SR-IOV init
   # container you can use a section similar to:
@@ -127,37 +134,50 @@ bootstrap:
 
 dependencies:
   dynamic:
+    common:
+      local_image_registry:
+        jobs:
+          - neutron-image-repo-sync
+        services:
+          - endpoint: node
+            service: local_image_registry
     targeted:
       openvswitch:
         dhcp:
           pod:
-            - labels:
+            - requireSameNode: true
+              labels:
                 application: neutron
                 component: neutron-ovs-agent
         l3:
           pod:
-            - labels:
+            - requireSameNode: true
+              labels:
                 application: neutron
                 component: neutron-ovs-agent
         metadata:
           pod:
-            - labels:
+            - requireSameNode: true
+              labels:
                 application: neutron
                 component: neutron-ovs-agent
       linuxbridge:
         dhcp:
           pod:
-            - labels:
+            - requireSameNode: true
+              labels:
                 application: neutron
                 component: neutron-lb-agent
         l3:
           pod:
-            - labels:
+            - requireSameNode: true
+              labels:
                 application: neutron
                 component: neutron-lb-agent
         metadata:
           pod:
-            - labels:
+            - requireSameNode: true
+              labels:
                 application: neutron
                 component: neutron-lb-agent
         lb_agent:
@@ -165,17 +185,20 @@ dependencies:
       sriov:
         dhcp:
           pod:
-            - labels:
+            - requireSameNode: true
+              labels:
                 application: neutron
                 component: neutron-sriov-agent
         l3:
           pod:
-            - labels:
+            - requireSameNode: true
+              labels:
                 application: neutron
                 component: neutron-sriov-agent
         metadata:
           pod:
-            - labels:
+            - requireSameNode: true
+              labels:
                 application: neutron
                 component: neutron-sriov-agent
   static:
@@ -226,8 +249,8 @@ dependencies:
           service: identity
     rabbit_init:
       services:
-      - service: oslo_messaging
-        endpoint: internal
+        - service: oslo_messaging
+          endpoint: internal
     l3:
       pod: null
       jobs:
@@ -265,10 +288,12 @@ dependencies:
       jobs:
         - neutron-rabbit-init
       pod:
-        - labels:
+        - requireSameNode: true
+          labels:
             application: openvswitch
             component: openvswitch-vswitchd
-        - labels:
+        - requireSameNode: true
+          labels:
             application: openvswitch
             component: openvswitch-vswitchd-db
       services:
@@ -297,6 +322,10 @@ dependencies:
           service: network
         - endpoint: internal
           service: compute
+    image_repo_sync:
+      services:
+        - endpoint: internal
+          service: local_image_registry
 
 pod:
   user:
@@ -488,6 +517,13 @@ pod:
           memory: "1024Mi"
           cpu: "2000m"
       tests:
+        requests:
+          memory: "128Mi"
+          cpu: "100m"
+        limits:
+          memory: "1024Mi"
+          cpu: "2000m"
+      image_repo_sync:
         requests:
           memory: "128Mi"
           cpu: "100m"
@@ -1115,10 +1151,15 @@ conf:
         route: CommandFilter, route, root
         radvd: CommandFilter, radvd, root
 
+        # haproxy
+        haproxy: RegExpFilter, haproxy, root, haproxy, -f, .*
+        kill_haproxy: KillFilter, root, haproxy, -15, -9, -HUP
+
         # metadata proxy
         metadata_proxy: CommandFilter, neutron-ns-metadata-proxy, root
         # RHEL invocation of the metadata proxy will report /usr/bin/python
         kill_metadata: KillFilter, root, python, -15, -9
+        kill_metadata2: KillFilter, root, python2, -15, -9
         kill_metadata7: KillFilter, root, python2.7, -15, -9
         kill_radvd_usr: KillFilter, root, /usr/sbin/radvd, -15, -9, -HUP
         kill_radvd: KillFilter, root, /sbin/radvd, -15, -9, -HUP
@@ -1127,6 +1168,15 @@ conf:
         ip: IpFilter, ip, root
         find: RegExpFilter, find, root, find, /sys/class/net, -maxdepth, 1, -type, l, -printf, %.*
         ip_exec: IpNetnsExecFilter, ip, root
+
+        # l3_tc_lib
+        l3_tc_show_qdisc: RegExpFilter, tc, root, tc, qdisc, show, dev, .+
+        l3_tc_add_qdisc_ingress: RegExpFilter, tc, root, tc, qdisc, add, dev, .+, ingress
+        l3_tc_add_qdisc_egress: RegExpFilter, tc, root, tc, qdisc, add, dev, .+, root, handle, 1:, htb
+        l3_tc_show_filters: RegExpFilter, tc, root, tc, -p, -s, -d, filter, show, dev, .+, parent, .+, prio, 1
+        l3_tc_delete_filters: RegExpFilter, tc, root, tc, filter, del, dev, .+, parent, .+, prio, 1, handle, .+, u32
+        l3_tc_add_filter_ingress: RegExpFilter, tc, root, tc, filter, add, dev, .+, parent, .+, protocol, ip, prio, 1, u32, match, ip, dst, .+, police, rate, .+, burst, .+, drop, flowid, :1
+        l3_tc_add_filter_egress:  RegExpFilter, tc, root, tc, filter, add, dev, .+, parent, .+, protocol, ip, prio, 1, u32, match, ip, src, .+, police, rate, .+, burst, .+, drop, flowid, :1
 
         # For ip monitor
         kill_ip_monitor: KillFilter, root, ip, -9
@@ -1203,14 +1253,11 @@ conf:
         dhcp_release: CommandFilter, dhcp_release, root
         dhcp_release6: CommandFilter, dhcp_release6, root
 
-        # haproxy
-        haproxy: RegExpFilter, haproxy, root, haproxy, -f, .*
-        kill_haproxy: KillFilter, root, haproxy, -15, -9, -HUP
-
         # metadata proxy
         metadata_proxy: CommandFilter, neutron-ns-metadata-proxy, root
         # RHEL invocation of the metadata proxy will report /usr/bin/python
         kill_metadata: KillFilter, root, python, -9
+        kill_metadata2: KillFilter, root, python2, -9
         kill_metadata7: KillFilter, root, python2.7, -9
 
         # ip_lib
@@ -1343,14 +1390,58 @@ conf:
         ip: IpFilter, ip, root
         find: RegExpFilter, find, root, find, /sys/class/net, -maxdepth, 1, -type, l, -printf, %.*
         ip_exec: IpNetnsExecFilter, ip, root
+
+        # needed for FDB extension
+        bridge: CommandFilter, bridge, root
+      privsep:
+        pods:
+          - dhcp_agent
+          - l3_agent
+          - lb_agent
+          - metadata_agent
+          - ovs_agent
+          - sriov_agent
+        content: |
+          # Command filters to allow privsep daemon to be started via rootwrap.
+          #
+          # This file should be owned by (and only-writeable by) the root user
+
+          [Filters]
+
+          # By installing the following, the local admin is asserting that:
+          #
+          # 1. The python module load path used by privsep-helper
+          #    command as root (as started by sudo/rootwrap) is trusted.
+          # 2. Any oslo.config files matching the --config-file
+          #    arguments below are trusted.
+          # 3. Users allowed to run sudo/rootwrap with this configuration(*) are
+          #    also allowed to invoke python "entrypoint" functions from
+          #    --privsep_context with the additional (possibly root) privileges
+          #    configured for that context.
+          #
+          # (*) ie: the user is allowed by /etc/sudoers to run rootwrap as root
+          #
+          # In particular, the oslo.config and python module path must not
+          # be writeable by the unprivileged user.
+
+          # oslo.privsep default neutron context
+          privsep: PathFilter, privsep-helper, root,
+           --config-file, /etc,
+           --privsep_context, neutron.privileged.default,
+           --privsep_sock_path, /
+
+          # NOTE: A second `--config-file` arg can also be added above. Since
+          # many neutron components are installed like that (eg: by devstack).
+          # Adjust to suit local requirements.
   neutron:
     DEFAULT:
+      log_config_append: /etc/neutron/logging.conf
       #NOTE(portdirect): the bind port should not be defined, and is manipulated
       # via the endpoints section.
       bind_port: null
       default_availability_zones: nova
       api_workers: 1
-      rpc_workers: 1
+      rpc_workers: 4
       allow_overlapping_ips: True
       # core_plugin can be: ml2, calico
       core_plugin: ml2
@@ -1359,10 +1450,8 @@ conf:
       service_plugins: router
       allow_automatic_l3agent_failover: True
       l3_ha: True
-      min_l3_agents_per_router: 2
       max_l3_agents_per_router: 2
       l3_ha_network_type: vxlan
-      dhcp_agents_per_network: 3
       network_auto_schedule: True
       router_auto_schedule: True
       #(NOTE)portdirect: if unset this is populated dyanmicly from the value in
@@ -1379,10 +1468,70 @@ conf:
     nova:
       auth_type: password
       auth_version: v3
+      endpoint_type: internal
     keystone_authtoken:
       memcache_security_strategy: ENCRYPT
       auth_type: password
       auth_version: v3
+  logging:
+    loggers:
+      keys:
+        - root
+        - neutron
+    handlers:
+      keys:
+        - stdout
+        - stderr
+        - "null"
+    formatters:
+      keys:
+        - context
+        - default
+    logger_root:
+      level: WARNING
+      handlers: null
+    logger_neutron:
+      level: INFO
+      handlers:
+        - stdout
+        - stderr
+      qualname: neutron
+    logger_amqp:
+      level: WARNING
+      handlers: stderr
+      qualname: amqp
+    logger_amqplib:
+      level: WARNING
+      handlers: stderr
+      qualname: amqplib
+    logger_eventletwsgi:
+      level: WARNING
+      handlers: stderr
+      qualname: eventlet.wsgi.server
+    logger_sqlalchemy:
+      level: WARNING
+      handlers: stderr
+      qualname: sqlalchemy
+    logger_boto:
+      level: WARNING
+      handlers: stderr
+      qualname: boto
+    handler_null:
+      class: logging.NullHandler
+      formatter: default
+      args: ()
+    handler_stdout:
+      class: StreamHandler
+      args: (sys.stdout,)
+      formatter: context
+    handler_stderr:
+      class: StreamHandler
+      args: (sys.stderr,)
+      formatter: context
+    formatter_context:
+      class: oslo_log.formatters.ContextFormatter
+    formatter_default:
+      format: "%(message)s"
   plugins:
     ml2_conf:
       ml2:
@@ -1410,9 +1559,8 @@ conf:
         arp_responder: True
       ovs:
         bridge_mappings: "external:br-ex"
-        ovsdb_connection: unix:/var/run/openvswitch/db.sock
       securitygroup:
-        firewall_driver: openvswitch
+        firewall_driver: neutron.agent.linux.iptables_firewall.OVSHybridIptablesFirewallDriver
     linuxbridge_agent:
       linux_bridge:
         # To define Flat and VLAN connections, in LB we can assign
@@ -1449,11 +1597,6 @@ conf:
   metering_agent: null
   metadata_agent:
     DEFAULT:
-      # IF blank, set dynamically from metadata hosts
-      # But ingress requires names! Scott 01-23-2018
-#      nova_metadata_host: metadata
-#      nova_metadata_port: 80
-#      nova_metadata_protocol: http
       # we cannot change the proxy socket path as it is declared
       # as a hostPath volume from agent daemonsets
       metadata_proxy_socket: /var/lib/neutron/openstack-helm/metadata_proxy
@@ -1461,6 +1604,21 @@ conf:
     cache:
       enabled: true
       backend: dogpile.cache.memcached
+
+  rabbitmq:
+    #NOTE(rk760n): adding rmq policy to mirror messages from notification queues and set expiration time for the ones
+    policies:
+      - vhost: "neutron"
+        name: "ha_ttl_neutron"
+        definition:
+          #mirror messges to other nodes in rmq cluster
+          ha-mode: "all"
+          ha-sync-mode: "automatic"
+          #70s
+          message-ttl: 70000
+        priority: 0
+        apply-to: all
+        pattern: '(notifications)\.'
 
 # Names of secrets used by bootstrap and environmental checks
 secrets:
@@ -1474,12 +1632,28 @@ secrets:
   oslo_messaging:
     admin: neutron-rabbitmq-admin
     neutron: neutron-rabbitmq-user
+  tls:
+    network:
+      server:
+        public: neutron-tls-public
 
 # typically overridden by environmental
 # values, but should include all endpoints
 # required by this chart
 endpoints:
   cluster_domain_suffix: cluster.local
+  local_image_registry:
+    name: docker-registry
+    namespace: docker-registry
+    hosts:
+      default: localhost
+      internal: docker-registry
+      node: localhost
+    host_fqdn_override:
+      default: null
+    port:
+      registry:
+        node: 5000
   oslo_db:
     auth:
       admin:
@@ -1509,7 +1683,7 @@ endpoints:
       default: rabbitmq
     host_fqdn_override:
       default: null
-    path: /
+    path: /neutron
     scheme: rabbit
     port:
       amqp:
@@ -1617,6 +1791,13 @@ endpoints:
       public: neutron
     host_fqdn_override:
       default: null
+      # NOTE(portdirect): this chart supports TLS for fqdn over-ridden public
+      # endpoints using the following format:
+      # public:
+      #   host: null
+      #   tls:
+      #     crt: null
+      #     key: null
     path:
       default: null
     scheme:
@@ -1625,6 +1806,21 @@ endpoints:
       api:
         default: 9696
         public: 80
+  fluentd:
+    namespace: osh-infra
+    name: fluentd
+    hosts:
+      default: fluentd-logging
+    host_fqdn_override:
+      default: null
+    path:
+      default: null
+    scheme: 'http'
+    port:
+      service:
+        default: 24224
+      metrics:
+        default: 24220
 
 manifests:
   configmap_bin: true
@@ -1641,6 +1837,7 @@ manifests:
   job_db_init: true
   job_db_sync: true
   job_db_drop: false
+  job_image_repo_sync: true
   job_ks_endpoints: true
   job_ks_service: true
   job_ks_user: true
@@ -1648,6 +1845,7 @@ manifests:
   pdb_server: true
   pod_rally_test: true
   secret_db: true
+  secret_ingress_tls: true
   secret_keystone: true
   secret_rabbitmq: true
   service_ingress_server: true

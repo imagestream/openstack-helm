@@ -16,18 +16,22 @@ limitations under the License.
 
 {{- if .Values.manifests.statefulset }}
 {{- $envAll := . }}
-{{- $dependencies := .Values.dependencies.static.mongodb }}
 
 {{- $serviceAccountName := "mongodb" }}
-{{ tuple $envAll $dependencies $serviceAccountName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
+{{ tuple $envAll "mongodb" $serviceAccountName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
 ---
-apiVersion: apps/v1beta1
+apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: mongodb
+  labels:
+{{ tuple $envAll "mongodb" "server" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 4 }}
 spec:
   serviceName: {{ tuple "mongodb" "internal" . | include "helm-toolkit.endpoints.hostname_short_endpoint_lookup" }}
   replicas: {{ .Values.pod.replicas.server }}
+  selector:
+    matchLabels:
+{{ tuple $envAll "mongodb" "server" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 6 }}
   template:
     metadata:
       labels:
@@ -39,54 +43,68 @@ spec:
       nodeSelector:
         {{ .Values.labels.server.node_selector_key }}: {{ .Values.labels.server.node_selector_value }}
       initContainers:
-{{ tuple $envAll $dependencies list | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
-      containers:
-      - name: mongodb
-        image: {{ .Values.images.tags.mongodb }}
-        imagePullPolicy: {{ .Values.images.pull_policy }}
-        ports:
-        - containerPort: {{ tuple "mongodb" "internal" "mongodb" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
-        env:
-          - name: ADMIN_PASS
-            valueFrom:
-              secretKeyRef:
-                name: mongodb-root-creds
-                key: MONGODB_ROOT_PASSWORD
-          - name: ADMIN_USER
-            valueFrom:
-              secretKeyRef:
-                name: mongodb-root-creds
-                key: MONGODB_ROOT_USERNAME
-        command:
-          - /tmp/start.sh
-        livenessProbe:
-          exec:
-            command:
-            - mongo
-            - --eval
-            - "db.adminCommand('ping')"
-          initialDelaySeconds: 20
-          timeoutSeconds: 5
-        readinessProbe:
-          exec:
-            command:
-            - mongo
-            - --eval
-            - "db.adminCommand('ping')"
-          initialDelaySeconds: 20
-          timeoutSeconds: 5
+{{ tuple $envAll "mongodb" list | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
+{{- if $envAll.Values.volume.chown_on_start }}
+        - name: mongodb-perms
+{{ tuple $envAll "mongodb" | include "helm-toolkit.snippets.image" | indent 10 }}
+          securityContext:
+            runAsUser: 0
 {{ tuple $envAll $envAll.Values.pod.resources.server | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
-        volumeMounts:
-          - name: mongodb-bin
-            mountPath: /tmp/start.sh
-            subPath: start.sh
-            readOnly: true
-          - name: mongodb-bin
-            mountPath: /tmp/setup_admin_user.sh
-            subPath: setup_admin_user.sh
-            readOnly: true
-          - name: mongodb-data
-            mountPath: /data/db
+          command:
+            - chown
+            - -R
+            - "mongodb:"
+            - {{ $envAll.Values.volume.host.host_path }}
+          volumeMounts:
+            - name: mongodb-data
+              mountPath: {{ $envAll.Values.volume.host.host_path }}
+{{- end }}
+      containers:
+        - name: mongodb
+{{ tuple $envAll "mongodb" | include "helm-toolkit.snippets.image" | indent 10 }}
+          ports:
+            - containerPort: {{ tuple "mongodb" "internal" "mongodb" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
+          env:
+            - name: ADMIN_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: mongodb-root-creds
+                  key: MONGODB_ROOT_PASSWORD
+            - name: ADMIN_USER
+              valueFrom:
+                secretKeyRef:
+                  name: mongodb-root-creds
+                  key: MONGODB_ROOT_USERNAME
+          command:
+            - /tmp/start.sh
+          livenessProbe:
+            exec:
+              command:
+              - mongo
+              - --eval
+              - "db.adminCommand('ping')"
+            initialDelaySeconds: 20
+            timeoutSeconds: 5
+          readinessProbe:
+            exec:
+              command:
+              - mongo
+              - --eval
+              - "db.adminCommand('ping')"
+            initialDelaySeconds: 20
+            timeoutSeconds: 5
+{{ tuple $envAll $envAll.Values.pod.resources.server | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
+          volumeMounts:
+            - name: mongodb-bin
+              mountPath: /tmp/start.sh
+              subPath: start.sh
+              readOnly: true
+            - name: mongodb-bin
+              mountPath: /tmp/setup_admin_user.sh
+              subPath: setup_admin_user.sh
+              readOnly: true
+            - name: mongodb-data
+              mountPath: /data/db
       volumes:
       - name: mongodb-bin
         configMap:
@@ -95,16 +113,17 @@ spec:
 {{- if not .Values.volume.enabled }}
       - name: mongodb-data
         hostPath:
-          path: {{ .Values.volume.host.host_path }}
+          path: {{ .Values.volume.host_path }}
 {{- else }}
   volumeClaimTemplates:
-    - metadata:
-        name: mongodb-data
-      spec:
-        accessModes: [ "ReadWriteOnce" ]
-        resources:
-          requests:
-            storage: {{ .Values.volume.size }}
-        storageClassName: {{ .Values.volume.class_name }}
+  - metadata:
+      name: mongodb-data
+      annotations:
+        {{ .Values.volume.class_path }}: {{ .Values.volume.class_name }}
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: {{ .Values.volume.size }}
 {{- end }}
 {{- end }}

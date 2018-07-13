@@ -16,10 +16,9 @@ limitations under the License.
 
 {{- if and .Values.manifests.monitoring.prometheus.job_user_create .Values.monitoring.prometheus.enabled }}
 {{- $envAll := . }}
-{{- $dependencies := .Values.dependencies.static.prometheus_create_mysql_user }}
 
 {{- $serviceAccountName := "exporter-create-sql-user" }}
-{{ tuple $envAll $dependencies $serviceAccountName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
+{{ tuple $envAll "prometheus_create_mysql_user" $serviceAccountName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
 ---
 apiVersion: batch/v1
 kind: Job
@@ -36,11 +35,10 @@ spec:
       nodeSelector:
         {{ .Values.labels.prometheus_mysql_exporter.node_selector_key }}: {{ .Values.labels.prometheus_mysql_exporter.node_selector_value }}
       initContainers:
-{{ tuple $envAll $dependencies list | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
+{{ tuple $envAll "prometheus_create_mysql_user" list | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
       containers:
         - name: exporter-create-sql-user
-          image: {{ .Values.images.tags.prometheus_create_mysql_user }}
-          imagePullPolicy: {{ .Values.images.pull_policy }}
+{{ tuple $envAll "prometheus_create_mysql_user" | include "helm-toolkit.snippets.image" | indent 10 }}
 {{ tuple $envAll $envAll.Values.pod.resources.jobs.prometheus_create_mysql_user | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
           command:
             - /tmp/create-mysql-user.sh
@@ -56,7 +54,7 @@ spec:
                   name: mysql-exporter-secrets
                   key: EXPORTER_PASSWORD
             - name: MYSQL_SERVICE
-              value: {{ tuple "oslo_db" "internal" . | include "helm-toolkit.endpoints.hostname_short_endpoint_lookup" }}
+              value: {{ tuple "oslo_db" "direct" . | include "helm-toolkit.endpoints.hostname_short_endpoint_lookup" }}
             - name: MYSQL_ROOT_USER
               value: {{ .Values.endpoints.oslo_db.auth.admin.username }}
             - name: MYSQL_ROOT_PASSWORD

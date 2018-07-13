@@ -16,17 +16,21 @@ limitations under the License.
 
 {{- if .Values.manifests.deployment_error }}
 {{- $envAll := . }}
-{{- $dependencies := .Values.dependencies.static.error_pages }}
 
 {{- $serviceAccountName := "ingress-error-pages"}}
-{{ tuple $envAll $dependencies $serviceAccountName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
+{{ tuple $envAll "error_pages" $serviceAccountName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
 ---
-apiVersion: apps/v1beta1
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: ingress-error-pages
+  labels:
+{{ tuple $envAll "ingress" "error-pages" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 4 }}
 spec:
   replicas: {{ .Values.pod.replicas.error_page }}
+  selector:
+    matchLabels:
+{{ tuple $envAll "ingress" "error-pages" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 6 }}
 {{ tuple $envAll | include "helm-toolkit.snippets.kubernetes_upgrades_deployment" | indent 2 }}
   template:
     metadata:
@@ -40,11 +44,10 @@ spec:
         {{ .Values.labels.error_server.node_selector_key }}: {{ .Values.labels.error_server.node_selector_value }}
       terminationGracePeriodSeconds: {{ .Values.pod.lifecycle.termination_grace_period.error_pages.timeout | default "60" }}
       initContainers:
-{{ tuple $envAll $dependencies list | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
+{{ tuple $envAll "error_pages" list | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
       containers:
         - name: ingress-error-pages
-          image: {{ .Values.images.tags.error_pages }}
-          imagePullPolicy: {{ .Values.images.pull_policy }}
+{{ tuple $envAll "error_pages" | include "helm-toolkit.snippets.image" | indent 10 }}
 {{ tuple $envAll $envAll.Values.pod.resources.error_pages | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
           livenessProbe:
             httpGet:

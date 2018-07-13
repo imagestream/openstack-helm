@@ -12,10 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Default values for keystone.
+# Default values for ceilometer.
 # This is a YAML-formatted file.
 # Declare name/value pairs to be passed into your templates.
 # name: value
+
+release_group: null
 
 labels:
   api:
@@ -55,8 +57,14 @@ images:
     ceilometer_collector: quay.io/larryrensing/ubuntu-source-ceilometer-collector:3.0.3
     ceilometer_compute: quay.io/larryrensing/ubuntu-source-ceilometer-compute:3.0.3
     ceilometer_notification: quay.io/larryrensing/ubuntu-source-ceilometer-notification:3.0.3
-    dep_check: quay.io/stackanetes/kubernetes-entrypoint:v0.3.0
+    dep_check: quay.io/stackanetes/kubernetes-entrypoint:v0.3.1
+    image_repo_sync: docker.io/docker:17.07.0
   pull_policy: "IfNotPresent"
+  local_registry:
+    active: false
+    exclude:
+      - dep_check
+      - image_repo_sync
 
 network:
   api:
@@ -1490,11 +1498,20 @@ conf:
     override: null
 
 dependencies:
+  dynamic:
+    common:
+      local_image_registry:
+        jobs:
+          - ceilometer-image-repo-sync
+        services:
+          - endpoint: node
+            service: local_image_registry
   static:
     api:
       jobs:
         - ceilometer-db-init-mongodb
         - ceilometer-db-sync
+        - ceilometer-rabbit-init
         - ceilometer-ks-user
         - ceilometer-ks-endpoints
       services:
@@ -1510,6 +1527,7 @@ dependencies:
       jobs:
         - ceilometer-db-init-mongodb
         - ceilometer-db-sync
+        - ceilometer-rabbit-init
         - ceilometer-ks-user
         - ceilometer-ks-endpoints
       services:
@@ -1525,6 +1543,7 @@ dependencies:
       jobs:
         - ceilometer-db-init-mongodb
         - ceilometer-db-sync
+        - ceilometer-rabbit-init
         - ceilometer-ks-user
         - ceilometer-ks-endpoints
       services:
@@ -1540,6 +1559,7 @@ dependencies:
       jobs:
         - ceilometer-db-init-mongodb
         - ceilometer-db-sync
+        - ceilometer-rabbit-init
         - ceilometer-ks-user
         - ceilometer-ks-endpoints
       services:
@@ -1562,9 +1582,12 @@ dependencies:
     db_sync:
       jobs:
         - ceilometer-db-init
+        - ceilometer-db-init-mongodb
       services:
         - endpoint: internal
           service: oslo_db
+        - endpoint: internal
+          service: mongodb
     ks_endpoints:
       jobs:
         - ceilometer-ks-service
@@ -1587,6 +1610,7 @@ dependencies:
       jobs:
         - ceilometer-db-init-mongodb
         - ceilometer-db-sync
+        - ceilometer-rabbit-init
         - ceilometer-ks-user
         - ceilometer-ks-endpoints
       services:
@@ -1606,6 +1630,10 @@ dependencies:
           service: metering
         - endpoint: internal
           service: metric
+    image_repo_sync:
+      services:
+        - endpoint: internal
+          service: local_image_registry
 
 # Names of secrets used by bootstrap and environmental checks
 secrets:
@@ -1634,6 +1662,18 @@ bootstrap:
 # required by this chart
 endpoints:
   cluster_domain_suffix: cluster.local
+  local_image_registry:
+    name: docker-registry
+    namespace: docker-registry
+    hosts:
+      default: localhost
+      internal: docker-registry
+      node: localhost
+    host_fqdn_override:
+      default: null
+    port:
+      registry:
+        node: 5000
   identity:
     name: keystone
     auth:
@@ -1780,7 +1820,7 @@ endpoints:
       default: rabbitmq
     host_fqdn_override:
       default: null
-    path: /
+    path: /ceilometer
     scheme: rabbit
     port:
       amqp:
@@ -1818,7 +1858,6 @@ pod:
     api: 1
     central: 1
     collector: 1
-    compute: 1
     notification: 1
   lifecycle:
     upgrades:
@@ -1828,6 +1867,12 @@ pod:
         rolling_update:
           max_unavailable: 1
           max_surge: 3
+      daemonsets:
+        pod_replacement_strategy: RollingUpdate
+        compute:
+          enabled: true
+          min_ready_seconds: 0
+          max_unavailable: 1
     disruption_budget:
       api:
         min_available: 0
@@ -1928,6 +1973,13 @@ pod:
         limits:
           memory: "1024Mi"
           cpu: "2000m"
+      image_repo_sync:
+        requests:
+          memory: "128Mi"
+          cpu: "100m"
+        limits:
+          memory: "1024Mi"
+          cpu: "2000m"
 
 manifests:
   configmap_bin: true
@@ -1935,7 +1987,7 @@ manifests:
   deployment_api: true
   deployment_central: true
   deployment_collector: true
-  deployment_compute: true
+  daemonset_compute: true
   deployment_notification: true
   ingress_api: true
   job_bootstrap: true
@@ -1943,6 +1995,7 @@ manifests:
   job_db_init: true
   job_db_init_mongodb: true
   job_db_sync: true
+  job_image_repo_sync: true
   job_ks_endpoints: true
   job_ks_service: true
   job_ks_user: true

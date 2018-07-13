@@ -20,6 +20,7 @@ set -ex
 COMMAND="${@:-start}"
 
 OVS_SOCKET=/run/openvswitch/db.sock
+OVS_PID=/run/openvswitch/ovs-vswitchd.pid
 
 function start () {
   t=0
@@ -34,18 +35,6 @@ function start () {
   done
 
   ovs-vsctl --no-wait show
-
-  external_bridge="{{- .Values.network.external_bridge -}}"
-  external_interface="{{- .Values.network.interface.external -}}"
-  if [ -n "${external_bridge}" ] ; then
-      # create bridge device
-      ovs-vsctl --no-wait --may-exist add-br $external_bridge
-      if [ -n "$external_interface" ] ; then
-          # add external interface to the bridge
-          ovs-vsctl --no-wait --may-exist add-port $external_bridge $external_interface
-          ip link set dev $external_interface up
-      fi
-  fi
 
   # handle any bridge mappings
   {{- range $br, $phys := .Values.network.auto_bridge_add }}
@@ -63,11 +52,13 @@ function start () {
           -vconsole:emer \
           -vconsole:err \
           -vconsole:info \
+          --pidfile=${OVS_PID} \
           --mlockall
 }
 
 function stop () {
-  ovs-appctl -T1 -t /run/openvswitch/ovs-vswitchd.1.ctl exit
+  PID=$(cat $OVS_PID)
+  ovs-appctl -T1 -t /run/openvswitch/ovs-vswitchd.${PID}.ctl exit
 }
 
 $COMMAND

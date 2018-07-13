@@ -1,3 +1,17 @@
+# Copyright 2018 The Openstack-Helm Authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 # Default values for gnocchi.
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
@@ -19,10 +33,12 @@ labels:
     node_selector_key: openstack-control-plane
     node_selector_value: enabled
 
+release_group: null
+
 images:
   tags:
-    dep_check: quay.io/stackanetes/kubernetes-entrypoint:v0.3.0
-    gnocchi_storage_init: docker.io/ceph/daemon:tag-build-master-luminous-ubuntu-16.04
+    dep_check: quay.io/stackanetes/kubernetes-entrypoint:v0.3.1
+    gnocchi_storage_init: docker.io/port/ceph-config-helper:v1.10.3
     db_init_indexer: docker.io/postgres:9.5
     # using non-kolla images until kolla supports postgres as
     # an indexer
@@ -34,7 +50,13 @@ images:
     gnocchi_api: quay.io/attcomdev/ubuntu-source-gnocchi-api:3.0.3
     gnocchi_statsd: quay.io/attcomdev/ubuntu-source-gnocchi-statsd:3.0.3
     gnocchi_metricd: quay.io/attcomdev/ubuntu-source-gnocchi-metricd:3.0.3
+    image_repo_sync: docker.io/docker:17.07.0
   pull_policy: "IfNotPresent"
+  local_registry:
+    active: false
+    exclude:
+      - dep_check
+      - image_repo_sync
 
 network:
   api:
@@ -55,6 +77,14 @@ network:
       port: 8125
 
 dependencies:
+  dynamic:
+    common:
+      local_image_registry:
+        jobs:
+          - gnocchi-image-repo-sync
+        services:
+          - endpoint: node
+            service: local_image_registry
   static:
     api:
       jobs:
@@ -138,6 +168,10 @@ dependencies:
           service: oslo_db_postgresql
         - endpoint: internal
           service: metric
+    image_repo_sync:
+      services:
+        - endpoint: internal
+          service: local_image_registry
 
 pod:
   user:
@@ -257,6 +291,13 @@ pod:
       tests:
         requests:
           memory: "124Mi"
+          cpu: "100m"
+        limits:
+          memory: "1024Mi"
+          cpu: "2000m"
+      image_repo_sync:
+        requests:
+          memory: "128Mi"
           cpu: "100m"
         limits:
           memory: "1024Mi"
@@ -404,6 +445,18 @@ bootstrap:
 # required by this chart
 endpoints:
   cluster_domain_suffix: cluster.local
+  local_image_registry:
+    name: docker-registry
+    namespace: docker-registry
+    hosts:
+      default: localhost
+      internal: docker-registry
+      node: localhost
+    host_fqdn_override:
+      default: null
+    port:
+      registry:
+        node: 5000
   identity:
     name: keystone
     auth:
@@ -530,6 +583,7 @@ manifests:
   job_db_drop: false
   job_db_init_indexer: true
   job_db_init: true
+  job_image_repo_sync: true
   secret_db_indexer: true
   job_db_sync: true
   job_ks_endpoints: true

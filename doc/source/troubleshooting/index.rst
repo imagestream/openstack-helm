@@ -11,6 +11,7 @@ Sometimes things go wrong. These guides will help you solve many common issues w
    persistent-storage
    proxy
    ubuntu-hwe-kernel
+   ceph
 
 Getting help
 ============
@@ -25,5 +26,5 @@ Channels
 Bugs and Feature requests
 -------------------------
 
-When discovering a new bug, please create a new issue in `Launchpad
-<https://bugs.launchpad.net/openstack-helm>`_.
+When discovering a new bug, please report a bug in `Storyboard
+<https://storyboard.openstack.org/#!/project/886>`_.

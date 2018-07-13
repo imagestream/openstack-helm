@@ -64,13 +64,14 @@ images:
     bootstrap: docker.io/openstackhelm/heat:newton
     db_drop: docker.io/openstackhelm/heat:newton
     db_init: docker.io/openstackhelm/heat:newton
-    dep_check: 'quay.io/stackanetes/kubernetes-entrypoint:v0.3.0'
+    dep_check: 'quay.io/stackanetes/kubernetes-entrypoint:v0.3.1'
     rabbit_init: docker.io/rabbitmq:3.7-management
     ks_user: docker.io/openstackhelm/heat:newton
     ks_service: docker.io/openstackhelm/heat:newton
     ks_endpoints: docker.io/openstackhelm/heat:newton
     nova_api: docker.io/openstackhelm/nova:newton
     nova_cell_setup: docker.io/openstackhelm/nova:newton
+    nova_cell_setup_init: docker.io/openstackhelm/heat:newton
     nova_compute: docker.io/openstackhelm/nova:newton
     nova_compute_ironic: 'docker.io/kolla/ubuntu-source-nova-compute-ironic:3.0.3'
     nova_compute_ssh: docker.io/openstackhelm/nova:newton
@@ -84,6 +85,21 @@ images:
     nova_spiceproxy: docker.io/openstackhelm/nova:newton
     nova_spiceproxy_assets: 'docker.io/kolla/ubuntu-source-nova-spicehtml5proxy:3.0.3'
     test: 'docker.io/kolla/ubuntu-source-rally:4.0.0'
+    image_repo_sync: docker.io/docker:17.07.0
+  local_registry:
+    active: false
+    exclude:
+      - dep_check
+      - image_repo_sync
+
+jobs:
+  # NOTE(portdirect): When using cells new nodes will be added to the cell on the hour by default.
+  # TODO(portdirect): Add a post-start action to nova compute pods that registers themselves.
+  cell_setup:
+    cron: "0 */1 * * *"
+    history:
+      success: 3
+      failed: 1
 
 bootstrap:
   enabled: true
@@ -94,35 +110,35 @@ bootstrap:
       enabled: true
       options:
         m1_tiny:
-            name: "m1.tiny"
-            id: "auto"
-            ram: 512
-            disk: 1
-            vcpus: 1
+          name: "m1.tiny"
+          id: "auto"
+          ram: 512
+          disk: 1
+          vcpus: 1
         m1_small:
-            name: "m1.small"
-            id: "auto"
-            ram: 2048
-            disk: 20
-            vcpus: 1
+          name: "m1.small"
+          id: "auto"
+          ram: 2048
+          disk: 20
+          vcpus: 1
         m1_medium:
-            name: "m1.medium"
-            id: "auto"
-            ram: 4096
-            disk: 40
-            vcpus: 2
+          name: "m1.medium"
+          id: "auto"
+          ram: 4096
+          disk: 40
+          vcpus: 2
         m1_large:
-            name: "m1.large"
-            id: "auto"
-            ram: 8192
-            disk: 80
-            vcpus: 4
+          name: "m1.large"
+          id: "auto"
+          ram: 8192
+          disk: 80
+          vcpus: 4
         m1_xlarge:
-            name: "m1.xlarge"
-            id: "auto"
-            ram: 16384
-            disk: 160
-            vcpus: 8
+          name: "m1.xlarge"
+          id: "auto"
+          ram: 16384
+          disk: 160
+          vcpus: 8
 
 network:
   # provide what type of network wiring will be used
@@ -186,32 +202,35 @@ network:
     name: "nova-ssh"
     port: 8022
 
-ceph:
-  enabled: true
-  monitors: []
-  cinder_user: "admin"
-  cinder_keyring: null
-  secret_uuid: 457eb676-33da-42ec-9a8c-9293d545c337
-
 dependencies:
   dynamic:
+    common:
+      local_image_registry:
+        jobs:
+          - nova-image-repo-sync
+        services:
+          - endpoint: node
+            service: local_image_registry
     targeted:
       openvswitch:
         compute:
           pod:
-            - labels:
+            - requireSameNode: true
+              labels:
                 application: neutron
                 component: neutron-ovs-agent
       linuxbridge:
         compute:
           pod:
-            - labels:
+            - requireSameNode: true
+              labels:
                 application: neutron
                 component: neutron-lb-agent
       sriov:
         compute:
           pod:
-            - labels:
+            - requireSameNode: true
+              labels:
                 application: neutron
                 component: neutron-sriov-agent
   static:
@@ -249,11 +268,17 @@ dependencies:
           service: identity
         - endpoint: internal
           service: compute
+      pod:
+        - requireSameNode: false
+          labels:
+            application: nova
+            component: compute
     compute:
       pod:
-        - labels:
-          application: libvirt
-          component: libvirt
+        - requireSameNode: true
+          labels:
+            application: libvirt
+            component: libvirt
       jobs:
         - nova-db-sync
         - nova-rabbit-init
@@ -337,8 +362,8 @@ dependencies:
           service: identity
     rabbit_init:
       services:
-      - service: oslo_messaging
-        endpoint: internal
+        - service: oslo_messaging
+          endpoint: internal
     novncproxy:
       jobs:
         - nova-db-sync
@@ -366,6 +391,10 @@ dependencies:
           service: compute
         - endpoint: internal
           service: network
+    image_repo_sync:
+      services:
+        - endpoint: internal
+          service: local_image_registry
 
 console:
   # serial | spice | novnc | none
@@ -394,6 +423,13 @@ ssh:
     - ed25519
 
 conf:
+  ceph:
+    enabled: true
+    admin_keyring: null
+    cinder:
+      user: "cinder"
+      keyring: null
+      secret_uuid: 457eb676-33da-42ec-9a8c-9293d545c337
   ssh:
     override:
     append:
@@ -985,13 +1021,14 @@ conf:
       compute_driver: ironic.IronicDriver
   nova:
     DEFAULT:
+      log_config_append: /etc/nova/logging.conf
       default_ephemeral_format: ext4
       ram_allocation_ratio: 1.0
       disk_allocation_ratio: 1.0
       cpu_allocation_ratio: 3.0
       state_path: /var/lib/nova
       osapi_compute_listen: 0.0.0.0
-      #NOTE(portdirect): the bind port should not be defined, and is manipulated
+      # NOTE(portdirect): the bind port should not be defined, and is manipulated
       # via the endpoints section.
       osapi_compute_listen_port: null
       osapi_compute_workers: 1
@@ -1009,13 +1046,13 @@ conf:
     vnc:
       novncproxy_host: 0.0.0.0
       vncserver_listen: 0.0.0.0
-      # leave blank, this should be set by each compute nodes's ip
-      #vncserver_proxyclient_address: null
+      # This would be set by each compute nodes's ip
+      # vncserver_proxyclient_address: 127.0.0.1
     spice:
       html5proxy_host: 0.0.0.0
       server_listen: 0.0.0.0
-      # leave blank, this should be set by each compute nodes's ip
-      #server_proxyclient_address: null
+      # This would be set by each compute nodes's ip
+      # server_proxyclient_address: 127.0.0.1
     conductor:
       workers: 1
     oslo_policy:
@@ -1051,7 +1088,7 @@ conf:
       images_type: qcow2
       images_rbd_pool: vms
       images_rbd_ceph_conf: /etc/ceph/ceph.conf
-      rbd_user: admin
+      rbd_user: cinder
       rbd_secret_uuid: 457eb676-33da-42ec-9a8c-9293d545c337
       disk_cachemodes: "network=writeback"
       hw_disk_discard: unmap
@@ -1067,6 +1104,79 @@ conf:
     placement:
       auth_type: password
       auth_version: v3
+  logging:
+    loggers:
+      keys:
+        - root
+        - nova
+    handlers:
+      keys:
+        - stdout
+        - stderr
+        - "null"
+    formatters:
+      keys:
+        - context
+        - default
+    logger_root:
+      level: WARNING
+      handlers: null
+    logger_nova:
+      level: INFO
+      handlers:
+        - stdout
+        - stderr
+      qualname: nova
+    logger_amqp:
+      level: WARNING
+      handlers: stderr
+      qualname: amqp
+    logger_amqplib:
+      level: WARNING
+      handlers: stderr
+      qualname: amqplib
+    logger_eventletwsgi:
+      level: WARNING
+      handlers: stderr
+      qualname: eventlet.wsgi.server
+    logger_sqlalchemy:
+      level: WARNING
+      handlers: stderr
+      qualname: sqlalchemy
+    logger_boto:
+      level: WARNING
+      handlers: stderr
+      qualname: boto
+    handler_null:
+      class: logging.NullHandler
+      formatter: default
+      args: ()
+    handler_stdout:
+      class: StreamHandler
+      args: (sys.stdout,)
+      formatter: context
+    handler_stderr:
+      class: StreamHandler
+      args: (sys.stderr,)
+      formatter: context
+    formatter_context:
+      class: oslo_log.formatters.ContextFormatter
+    formatter_default:
+      format: "%(message)s"
+  rabbitmq:
+    #NOTE(rk760n): adding rmq policy to mirror messages from notification queues and set expiration time for the ones
+    policies:
+      - vhost: "nova"
+        name: "ha_ttl_nova"
+        definition:
+          #mirror messges to other nodes in rmq cluster
+          ha-mode: "all"
+          ha-sync-mode: "automatic"
+          #70s
+          message-ttl: 70000
+        priority: 0
+        apply-to: all
+        pattern: '(notifications)\.'
 
 # Names of secrets used by bootstrap and environmental checks
 secrets:
@@ -1087,12 +1197,34 @@ secrets:
   oslo_messaging:
     admin: nova-rabbitmq-admin
     nova: nova-rabbitmq-user
+  tls:
+    compute:
+      osapi:
+        public: nova-tls-public
+    compute_novnc_proxy:
+      novncproxy:
+        public: nova-novncproxy-tls-public
+    placement:
+      placement:
+        public: placement-tls-public
 
 # typically overridden by environmental
 # values, but should include all endpoints
 # required by this chart
 endpoints:
   cluster_domain_suffix: cluster.local
+  local_image_registry:
+    name: docker-registry
+    namespace: docker-registry
+    hosts:
+      default: localhost
+      internal: docker-registry
+      node: localhost
+    host_fqdn_override:
+      default: null
+    port:
+      registry:
+        node: 5000
   oslo_db:
     auth:
       admin:
@@ -1156,7 +1288,7 @@ endpoints:
       default: rabbitmq
     host_fqdn_override:
       default: null
-    path: /
+    path: /nova
     scheme: rabbit
     port:
       amqp:
@@ -1196,7 +1328,7 @@ endpoints:
         project_name: service
         user_domain_name: default
         project_domain_name: default
-      #NOTE(portdirect): the neutron user is not managed by the nova chart
+      # NOTE(portdirect): the neutron user is not managed by the nova chart
       # these values should match those set in the neutron chart.
       neutron:
         region_name: RegionOne
@@ -1205,7 +1337,7 @@ endpoints:
         user_domain_name: default
         username: neutron
         password: password
-      #NOTE(portdirect): the ironic user is not managed by the nova chart
+      # NOTE(portdirect): the ironic user is not managed by the nova chart
       # these values should match those set in the ironic chart.
       ironic:
         auth_type: password
@@ -1268,6 +1400,13 @@ endpoints:
       public: nova
     host_fqdn_override:
       default: null
+      # NOTE(portdirect): this chart supports TLS for fqdn over-ridden public
+      # endpoints using the following format:
+      # public:
+      #   host: null
+      #   tls:
+      #     crt: null
+      #     key: null
     path:
       default: "/v2.1/%(tenant_id)s"
     scheme:
@@ -1303,6 +1442,13 @@ endpoints:
       public: novncproxy
     host_fqdn_override:
       default: null
+      # NOTE(portdirect): this chart supports TLS for fqdn over-ridden public
+      # endpoints using the following format:
+      # public:
+      #   host: null
+      #   tls:
+      #     crt: null
+      #     key: null
     path:
       default: /vnc_auto.html
     scheme:
@@ -1370,17 +1516,32 @@ endpoints:
       api:
         default: 6385
         public: 80
+  fluentd:
+    namespace: null
+    name: fluentd
+    hosts:
+      default: fluentd-logging
+    host_fqdn_override:
+      default: null
+    path:
+      default: null
+    scheme: 'http'
+    port:
+      service:
+        default: 24224
+      metrics:
+        default: 24220
 
 pod:
   user:
     nova:
       uid: 42424
   affinity:
-      anti:
-        type:
-          default: preferredDuringSchedulingIgnoredDuringExecution
-        topologyKey:
-          default: kubernetes.io/hostname
+    anti:
+      type:
+        default: preferredDuringSchedulingIgnoredDuringExecution
+      topologyKey:
+        default: kubernetes.io/hostname
   mounts:
     nova_compute:
       init_container: null
@@ -1606,10 +1767,18 @@ pod:
         limits:
           memory: "1024Mi"
           cpu: "2000m"
+      image_repo_sync:
+        requests:
+          memory: "128Mi"
+          cpu: "100m"
+        limits:
+          memory: "1024Mi"
+          cpu: "2000m"
 
 manifests:
   configmap_bin: true
   configmap_etc: true
+  cron_job_cell_setup: true
   daemonset_compute: true
   deployment_api_metadata: true
   deployment_api_osapi: true
@@ -1628,6 +1797,7 @@ manifests:
   job_db_init_placement: true
   job_db_sync: true
   job_db_drop: false
+  job_image_repo_sync: true
   job_rabbit_init: true
   job_ks_endpoints: true
   job_ks_service: true
@@ -1642,6 +1812,7 @@ manifests:
   pod_rally_test: true
   secret_db_api: true
   secret_db: true
+  secret_ingress_tls: true
   secret_keystone: true
   secret_keystone_placement: true
   secret_rabbitmq: true

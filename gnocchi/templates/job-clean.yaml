@@ -16,20 +16,16 @@ limitations under the License.
 
 {{- if .Values.manifests.job_clean }}
 {{- $envAll := . }}
-{{- $dependencies := .Values.dependencies.static.clean }}
 
 {{- $randStringSuffix := randAlphaNum 5 | lower }}
 
 {{- $serviceAccountName := print "gnocchi-clean-" $randStringSuffix }}
-{{ tuple $envAll $dependencies $serviceAccountName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
+{{ tuple $envAll "clean" $serviceAccountName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1beta1
 kind: Role
 metadata:
   name: {{ $serviceAccountName }}
-  annotations:
-    "helm.sh/hook": pre-delete
-    "helm.sh/hook-delete-policy": hook-succeeded
 rules:
   - apiGroups:
       - ""
@@ -43,9 +39,6 @@ apiVersion: rbac.authorization.k8s.io/v1beta1
 kind: RoleBinding
 metadata:
   name: {{ $serviceAccountName }}
-  annotations:
-    "helm.sh/hook": pre-delete
-    "helm.sh/hook-delete-policy": hook-succeeded
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
@@ -73,11 +66,10 @@ spec:
       nodeSelector:
         {{ .Values.labels.job.node_selector_key }}: {{ .Values.labels.job.node_selector_value }}
       initContainers:
-{{ tuple $envAll $dependencies list | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
+{{ tuple $envAll "clean" list | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
       containers:
         - name: gnocchi-rbd-secret-clean
-          image: {{ .Values.images.tags.gnocchi_storage_init }}
-          imagePullPolicy: {{ .Values.images.pull_policy }}
+{{ tuple $envAll "gnocchi_storage_init" | include "helm-toolkit.snippets.image" | indent 10 }}
 {{ tuple $envAll $envAll.Values.pod.resources.jobs.clean | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
           env:
             - name: NAMESPACE
