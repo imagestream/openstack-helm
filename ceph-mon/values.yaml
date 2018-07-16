@@ -102,6 +102,8 @@ pod:
           cpu: "2000m"
 
 secrets:
+  keys:
+    admin: null
   keyrings:
     mon: ceph-mon-keyring
     mds: ceph-bootstrap-mds-keyring

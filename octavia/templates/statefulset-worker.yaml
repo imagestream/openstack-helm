@@ -16,12 +16,11 @@ limitations under the License.
 
 {{- if .Values.manifests.statefulset_worker }}
 {{- $envAll := . }}
-{{- $dependencies := .Values.dependencies.static.worker }}
 {{- $mounts_octavia_worker := .Values.pod.mounts.octavia_worker.octavia_worker }}
 {{- $mounts_octavia_worker_init := .Values.pod.mounts.octavia_worker.init_container }}
 
 {{- $serviceAccountName := "octavia-worker" }}
-{{ tuple $envAll $dependencies $serviceAccountName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
+{{ tuple $envAll "worker" $serviceAccountName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
 ---
 apiVersion: apps/v1beta1
 kind: StatefulSet
@@ -46,7 +45,7 @@ spec:
       securityContext:
         runAsUser: {{ .Values.pod.user.octavia.uid }}
       initContainers:
-{{ tuple $envAll $dependencies $mounts_octavia_worker_init | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
+{{ tuple $envAll "worker" $mounts_octavia_worker_init | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
 #        - name: octavia-worker-perms
 #          image: {{ .Values.images.tags.octavia_worker }}
 #          imagePullPolicy: {{ .Values.images.pull_policy }}

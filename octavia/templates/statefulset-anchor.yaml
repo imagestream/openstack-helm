@@ -16,12 +16,11 @@ limitations under the License.
 
 {{- if .Values.manifests.statefulset_anchor }}
 {{- $envAll := . }}
-{{- $dependencies := .Values.dependencies.static.anchor }}
 {{- $mounts_octavia_anchor := .Values.pod.mounts.octavia_anchor.octavia_anchor }}
 {{- $mounts_octavia_anchor_init := .Values.pod.mounts.octavia_anchor.init_container }}
 
 {{- $serviceAccountName := "octavia-anchor" }}
-{{ tuple $envAll $dependencies $serviceAccountName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
+{{ tuple $envAll "anchor" $serviceAccountName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
 ---
 apiVersion: apps/v1beta1
 kind: StatefulSet
@@ -46,7 +45,7 @@ spec:
       securityContext:
         runAsUser: 0
       initContainers:
-{{ tuple $envAll $dependencies $mounts_octavia_anchor_init | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
+{{ tuple $envAll "anchor" $mounts_octavia_anchor_init | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
       containers:
         - name: octavia-anchor
           image: {{ .Values.images.tags.octavia_anchor }}

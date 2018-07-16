@@ -16,12 +16,11 @@ limitations under the License.
 
 {{- if .Values.manifests.statefulset_housekeeping }}
 {{- $envAll := . }}
-{{- $dependencies := .Values.dependencies.static.housekeeping }}
 {{- $mounts_octavia_housekeeping := .Values.pod.mounts.octavia_housekeeping.octavia_housekeeping }}
 {{- $mounts_octavia_housekeeping_init := .Values.pod.mounts.octavia_housekeeping.init_container }}
 
 {{- $serviceAccountName := "octavia-housekeeping" }}
-{{ tuple $envAll $dependencies $serviceAccountName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
+{{ tuple $envAll "housekeeping" $serviceAccountName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
 ---
 apiVersion: apps/v1beta1
 kind: StatefulSet
@@ -46,7 +45,7 @@ spec:
       securityContext:
         runAsUser: {{ .Values.pod.user.octavia.uid }}
       initContainers:
-{{ tuple $envAll $dependencies $mounts_octavia_housekeeping_init | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
+{{ tuple $envAll "housekeeping" $mounts_octavia_housekeeping_init | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
       containers:
         - name: octavia-housekeeping
           image: {{ .Values.images.tags.octavia_housekeeping }}

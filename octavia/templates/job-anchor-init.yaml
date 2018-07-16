@@ -19,10 +19,8 @@ limitations under the License.
 {{- range $key1, $anchorBootstrapKey := tuple "server" "client" }}
 {{- $jobName := print $anchorBootstrapKey "-anchor-bootstrap " }}
 
-{{- $dependencies := $envAll.Values.dependencies.static.job_anchor_bootstrap }}
-
 {{- $serviceAccountName := print "anchor-" $jobName }}
-{{ tuple $envAll $dependencies $serviceAccountName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
+{{ tuple $envAll "anchor" $serviceAccountName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1beta1
 kind: Role
@@ -66,7 +64,7 @@ spec:
       nodeSelector:
         {{ $envAll.Values.labels.job.node_selector_key }}: {{ $envAll.Values.labels.job.node_selector_value }}
       initContainers:
-{{ tuple $envAll $dependencies list | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
+{{ tuple $envAll "anchor" list | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
       containers:
         - name:  anchor-{{ $jobName }}
           image: {{ $envAll.Values.images.tags.ceph_config_helper }}

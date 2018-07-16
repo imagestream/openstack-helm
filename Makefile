@@ -16,7 +16,7 @@
 SHELL := /bin/bash
 TASK  := build
 
-EXCLUDES := helm-toolkit doc tests tools logs tmp
+EXCLUDES := ceph-external helm-toolkit doc tests tools logs tmp
 CHARTS := helm-toolkit $(filter-out $(EXCLUDES), $(patsubst %/.,%,$(wildcard */.)))
 
 .PHONY: $(EXCLUDES) $(CHARTS)

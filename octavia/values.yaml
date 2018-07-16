@@ -58,7 +58,12 @@ images:
     octavia_housekeeping: docker.io/kolla/ubuntu-source-octavia-housekeeping:4.0.0
     octavia_health_manager:  docker.io/kolla/ubuntu-source-octavia-health-manager:4.0.0
     octavia_anchor: docker.io/openstacksecurity/anchor:latest
-    pull_policy: "IfNotPresent"
+    image_repo_sync: docker.io/docker:17.07.0
+  local_registry:
+    active: false
+    exclude:
+      - dep_check
+      - image_repo_sync
 
 bootstrap:
   enabled: false
@@ -216,6 +221,13 @@ pod:
         limits:
           memory: "1024Mi"
           cpu: "2000m"
+      image_repo_sync:
+        requests:
+          memory: "128Mi"
+          cpu: "100m"
+        limits:
+          memory: "1024Mi"
+          cpu: "2000m"
 
 volume:
   enabled: true
@@ -364,6 +376,14 @@ network:
       enabled: false
 
 dependencies:
+  dynamic:
+    common:
+      local_image_registry:
+        jobs:
+          - octavia-image-repo-sync
+        services:
+          - endpoint: node
+            service: local_image_registry
   static:
     api:
       jobs:
@@ -457,6 +477,10 @@ dependencies:
       services:
       - service: oslo_messaging
         endpoint: internal
+    image_repo_sync:
+      services:
+        - endpoint: internal
+          service: local_image_registry
 
 # Names of secrets used by bootstrap and environmental checks
 secrets:
@@ -624,6 +648,7 @@ manifests:
   job_ks_service: true
   job_ks_user: true
   job_rabbit_init: true
+  job_image_repo_sync: true
   pdb_api: true
   pod_rally_test: true
   secret_db: true

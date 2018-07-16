@@ -16,12 +16,11 @@ limitations under the License.
 
 {{- if .Values.manifests.statefulset_health_manager }}
 {{- $envAll := . }}
-{{- $dependencies := .Values.dependencies.static.health_manager }}
 {{- $mounts_octavia_health_manager := .Values.pod.mounts.octavia_health_manager.octavia_health_manager }}
 {{- $mounts_octavia_health_manager_init := .Values.pod.mounts.octavia_health_manager.init_container }}
 
 {{- $serviceAccountName := "octavia-health-manager" }}
-{{ tuple $envAll $dependencies $serviceAccountName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
+{{ tuple $envAll "health_manager" $serviceAccountName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
 ---
 apiVersion: apps/v1beta1
 kind: StatefulSet
@@ -46,7 +45,7 @@ spec:
       securityContext:
         runAsUser: {{ .Values.pod.user.octavia.uid }}
       initContainers:
-{{ tuple $envAll $dependencies $mounts_octavia_health_manager_init | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
+{{ tuple $envAll "health_manager" $mounts_octavia_health_manager_init | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
       containers:
         - name: octavia-health-manager
           image: {{ .Values.images.tags.octavia_health_manager }}
