@@ -23,8 +23,8 @@ metadata:
     name: {{ .Values.storageclass.rbd.name }}
 provisioner: {{ .Values.storageclass.rbd.provisioner }}
 parameters:
-{{- if .Values.deployment.external_ceph }}
-    monitors: {{ tuple "ceph_mon" "internal" "mon" . | include "helm-toolkit.endpoints.host_and_port_no_fqdn_endpoint_uri_lookup" }}
+{{- if .Values.storageclass.rbd.monitors }}
+    monitors: {{ .Values.storageclass.rbd.monitors }}
 {{- else }}
     monitors: {{ tuple "ceph_mon" "internal" "mon" . | include "helm-toolkit.endpoints.host_and_port_endpoint_uri_lookup" }}
 {{- end }}
