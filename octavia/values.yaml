@@ -529,7 +529,7 @@ endpoints:
       default: rabbitmq
     host_fqdn_override:
       default: null
-    path: /
+    path: /octavia
     scheme: rabbit
     port:
       amqp:
