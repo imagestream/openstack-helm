@@ -203,7 +203,7 @@ limitations under the License.
 {{- if and (empty .Values.conf.logging.handler_fluent) (has "fluent" .Values.conf.logging.handlers.keys) -}}
 {{- $fluentd_host := tuple "fluentd" "internal" $envAll | include "helm-toolkit.endpoints.hostname_namespaced_endpoint_lookup" }}
 {{- $fluentd_port := tuple "fluentd" "internal" "service" $envAll | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
-{{- $fluent_args := printf "('openstack.nova', '%s', %s)" $fluentd_host $fluentd_port }}
+{{- $fluent_args := printf "('%s.%s', '%s', %s)" .Release.Namespace .Release.Name $fluentd_host $fluentd_port }}
 {{- $handler_fluent := dict "class" "fluent.handler.FluentHandler" "formatter" "fluent" "args" $fluent_args -}}
 {{- $_ := set .Values.conf.logging "handler_fluent" $handler_fluent -}}
 {{- end -}}
@@ -225,15 +225,14 @@ data:
   policy.yaml: |
 {{ toYaml .Values.conf.policy | indent 4 }}
   nova_sudoers: |
-{{- tuple .Values.conf.nova_sudoers "etc/_nova_sudoers.tpl" . | include "helm-toolkit.utils.configmap_templater" }}
+{{ $envAll.Values.conf.nova_sudoers | indent 4 }}
   rootwrap.conf: |
-{{- tuple .Values.conf.rootwrap "etc/_rootwrap.conf.tpl" . | include "helm-toolkit.utils.configmap_templater" }}
-  api-metadata.filters: |
-{{- tuple .Values.conf.rootwrap_filters.api_metadata "etc/rootwrap.d/_api-metadata.filters.tpl" . | include "helm-toolkit.utils.configmap_templater" }}
-  compute.filters: |
-{{- tuple .Values.conf.rootwrap_filters.compute "etc/rootwrap.d/_compute.filters.tpl" . | include "helm-toolkit.utils.configmap_templater" }}
-  network.filters: |
-{{- tuple .Values.conf.rootwrap_filters.network "etc/rootwrap.d/_network.filters.tpl" . | include "helm-toolkit.utils.configmap_templater" }}
+{{- .Values.conf.rootwrap | indent 4 }}
+{{- range $key, $value := $envAll.Values.conf.rootwrap_filters }}
+{{- $filePrefix := replace "_" "-"  $key }}
+  {{ printf "%s.filters" $filePrefix }}: |
+{{ $value.content | indent 4 }}
+{{- end }}
   nova.conf: |
 {{ include "helm-toolkit.utils.to_oslo_conf" .Values.conf.nova | indent 4 }}
   logging.conf: |

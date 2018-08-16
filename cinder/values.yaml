@@ -772,7 +772,6 @@ conf:
       level: INFO
       handlers:
         - stdout
-        - stderr
       qualname: cinder
     logger_amqp:
       level: WARNING
@@ -851,6 +850,13 @@ conf:
               max: 0
 
 backup:
+  external_ceph_rbd:
+    enabled: false
+    admin_keyring: null
+    conf:
+      global:
+        mon_host: null
+      osd:
   posix:
     volume:
       class_name: general
@@ -1035,16 +1041,16 @@ endpoints:
         username: cinder
         password: password
         project_name: service
-        user_domain_name: default
-        project_domain_name: default
+        user_domain_name: service
+        project_domain_name: service
       test:
         role: admin
         region_name: RegionOne
         username: test
         password: password
         project_name: test
-        user_domain_name: default
-        project_domain_name: default
+        user_domain_name: service
+        project_domain_name: service
     hosts:
       default: keystone-api
       public: keystone
@@ -1055,10 +1061,9 @@ endpoints:
     scheme:
       default: http
     port:
-      admin:
-        default: 35357
       api:
         default: 80
+        internal: 5000
   image:
     name: glance
     hosts:
