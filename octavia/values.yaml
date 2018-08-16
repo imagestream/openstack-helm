@@ -409,6 +409,8 @@ dependencies:
           service: identity
         - endpoint: internal
           service: oslo_messaging
+        - endpoint: internal
+          service: pki
     housekeeping:
       jobs:
         - octavia-db-sync
@@ -421,6 +423,8 @@ dependencies:
           service: identity
         - endpoint: internal
           service: oslo_messaging
+        - endpoint: internal
+          service: pki
     health_manager:
       jobs:
         - octavia-db-sync
@@ -433,6 +437,8 @@ dependencies:
           service: identity
         - endpoint: internal
           service: oslo_messaging
+        - endpoint: internal
+          service: pki
     anchor:
       jobs:
       services:
@@ -591,6 +597,7 @@ endpoints:
         default: 35357
       api:
         default: 80
+        internal: 5000
   load_balancer:
     name: octavia
     hosts:
