@@ -31,6 +31,9 @@ function start () {
      source /etc/apache2/envvars
   fi
 
+  # Now that we mount /var/run as emptydir this can exist if we crash and respawn!
+  rm -f /var/run/apache2/apache2.pid
+
   # Start Apache2
   exec apache2 -DFOREGROUND
 }
