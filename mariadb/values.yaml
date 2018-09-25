@@ -176,11 +176,15 @@ conf:
     worker-processes: "2"
 
 database:
-  config_override: null
   # Any configuration here will override the base config.
-  # config_override: |-
-  #   [mysqld]
-  #   wsrep_slave_threads=1
+  config_override: |-
+    [mysqld]
+    thread_handling=pool-of-threads
+    wsrep_slave_threads=4
+    thread_cache_size=4
+    thread_pool_size=8
+    innodb_read_io_threads=4
+    innodb_write_io_threads=4
 
 monitoring:
   prometheus:
