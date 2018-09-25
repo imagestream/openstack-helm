@@ -30,10 +30,12 @@ data:
 {{ tuple "etc/_20-override.cnf.tpl" $envAll | include "helm-toolkit.utils.template" | indent 4 }}
   99-force.cnf: |
 {{ tuple "etc/_99-force.cnf.tpl" $envAll | include "helm-toolkit.utils.template" | indent 4 }}
-{{- if $envAll.Values.conf.ingress }}
-  nginx.tmpl: |
-{{ $envAll.Values.conf.ingress | indent 4 }}
-{{- else }}
 {{ ( $envAll.Files.Glob "files/nginx.tmpl" ).AsConfig | indent 2 }}
-{{- end }}
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mariadb-ingress-conf
+data:
+{{ toYaml .Values.conf.ingress | indent 2 }}
 {{- end }}

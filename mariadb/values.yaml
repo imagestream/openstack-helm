@@ -172,7 +172,8 @@ volume:
 
 
 conf:
-  ingress: null
+  ingress:
+    worker-processes: 2
 
 database:
   config_override: null
