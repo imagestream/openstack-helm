@@ -33,7 +33,7 @@ if [ "x$STORAGE_BACKEND" == "xcinder.volume.drivers.rbd.RBDDriver" ]; then
     ceph osd pool stats $1 || ceph osd pool create $1 $2
     local test_luminous=$(ceph tell osd.* version | egrep -c "12.2|luminous" | xargs echo)
     if [[ ${test_luminous} -gt 0 ]]; then
-      ceph osd pool application enable $1 $3
+      ceph osd pool application enable $1 $3 || true
     fi
 # NOOOO! Scott
 #    ceph osd pool set $1 size ${RBD_POOL_REPLICATION}
