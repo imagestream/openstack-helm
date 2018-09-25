@@ -269,6 +269,7 @@ endpoints:
 manifests:
   configmap_bin: true
   configmap_etc: true
+  configmap_conf: true
   configmap_services_tcp: true
   deployment_error: true
   deployment_ingress: true

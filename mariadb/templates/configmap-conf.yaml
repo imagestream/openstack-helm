@@ -14,21 +14,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */}}
 
-{{- if .Values.manifests.configmap_etc }}
+{{- if .Values.manifests.configmap_conf }}
 {{- $envAll := . }}
+
 ---
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: mariadb-etc
+  name: mariadb-ingress-conf
 data:
-  my.cnf: |
-{{ tuple "etc/_my.cnf.tpl" $envAll | include "helm-toolkit.utils.template" | indent 4 }}
-  00-base.cnf: |
-{{ tuple "etc/_00-base.cnf.tpl" $envAll | include "helm-toolkit.utils.template" | indent 4 }}
-  20-override.cnf: |
-{{ tuple "etc/_20-override.cnf.tpl" $envAll | include "helm-toolkit.utils.template" | indent 4 }}
-  99-force.cnf: |
-{{ tuple "etc/_99-force.cnf.tpl" $envAll | include "helm-toolkit.utils.template" | indent 4 }}
-{{ ( $envAll.Files.Glob "files/nginx.tmpl" ).AsConfig | indent 2 }}
+{{ toYaml .Values.conf.ingress | indent 2 }}
 {{- end }}
