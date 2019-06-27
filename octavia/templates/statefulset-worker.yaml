@@ -22,12 +22,15 @@ limitations under the License.
 {{- $serviceAccountName := "octavia-worker" }}
 {{ tuple $envAll "worker" $serviceAccountName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
 ---
-apiVersion: apps/v1beta1
+apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: octavia-worker
 spec:
   replicas: {{ .Values.pod.replicas.worker }}
+  selector:
+    matchLabels:
+{{ tuple $envAll "octavia" "worker" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 6 }}
   serviceName: octavia-worker
   template:
     metadata:

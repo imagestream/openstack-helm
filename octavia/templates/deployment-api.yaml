@@ -21,14 +21,19 @@ limitations under the License.
 {{- $mounts_octavia_api_init := .Values.pod.mounts.octavia_api.init_container }}
 
 {{- $serviceAccountName := "octavia-api" }}
-{{ tuple $envAll "octavia" $serviceAccountName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
-
-apiVersion: apps/v1beta1
+{{ tuple $envAll "api" $serviceAccountName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
+---
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: octavia-api
+  labels:
+{{ tuple $envAll "octavia" "api" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 4 }}
 spec:
   replicas: {{ .Values.pod.replicas.api }}
+  selector:
+    matchLabels:
+{{ tuple $envAll "octavia" "api" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 6 }}
 {{ tuple $envAll | include "helm-toolkit.snippets.kubernetes_upgrades_deployment" | indent 2 }}
   template:
     metadata:

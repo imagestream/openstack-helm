@@ -52,6 +52,7 @@ images:
     ks_user: docker.io/openstackhelm/heat:newton
     ks_service: docker.io/openstackhelm/heat:newton
     ks_endpoints: docker.io/openstackhelm/heat:newton
+    rabbit_init: docker.io/rabbitmq:3.7-management
     octavia_db_sync: docker.io/kolla/ubuntu-source-octavia-api:4.0.0
     octavia_api: docker.io/kolla/ubuntu-source-octavia-api:4.0.0
     octavia_worker: docker.io/kolla/ubuntu-source-octavia-worker:4.0.0
@@ -334,9 +335,6 @@ conf:
     load-balancer:read-quota: "rule:admin_or_owner"
     load-balancer:read-quota-global: "is_admin:True"
     load-balancer:write-quota: "is_admin:True"
-  glance:
-    DEFAULT:
-      #NOTE(portdirect): the bind port should not be defined, and is manipulated
 
 network:
   api:
