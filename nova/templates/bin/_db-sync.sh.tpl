@@ -25,8 +25,9 @@ function manage_cells () {
   # accordingly. Support was complete in ocata (V14.x.x).
   if [ "${NOVA_VERSION%%.*}" -gt "14" ]; then
     nova-manage cell_v2 map_cell0
+    # This breaks on systems upgrading from an older cells v1 release! So don't error
     nova-manage cell_v2 list_cells | grep -q " cell1 " || \
-      nova-manage cell_v2 create_cell --name=cell1 --verbose
+      nova-manage cell_v2 create_cell --name=cell1 --verbose || true
   fi
 }
 
