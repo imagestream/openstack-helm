@@ -15,11 +15,11 @@ limitations under the License.
 */}}
 
 {{- define "cinder.utils.has_ceph_backend" -}}
-  {{- $has_ceph := false -}}
   {{- range $_, $backend := .Values.conf.backends -}}
     {{- if kindIs "map" $backend -}}
-      {{- $has_ceph = or $has_ceph (eq $backend.volume_driver "cinder.volume.drivers.rbd.RBDDriver") -}}
+      {{- if eq $backend.volume_driver "cinder.volume.drivers.rbd.RBDDriver" -}}
+        true
+      {{- end -}}
     {{- end -}}
   {{- end -}}
-  {{- $has_ceph -}}
 {{- end -}}
