@@ -17,7 +17,8 @@
 set -xe
 
 #NOTE: Lint and package chart
-make ingress
+: ${OSH_INFRA_PATH:="../openstack-helm-infra"}
+make -C ${OSH_INFRA_PATH} ingress
 
 #NOTE: Deploy command
 : ${OSH_INFRA_PATH:="../openstack-helm-infra"}
@@ -42,15 +43,25 @@ helm upgrade --install ingress-kube-system ${OSH_INFRA_PATH}/ingress \
 helm status ingress-kube-system
 
 #NOTE: Deploy namespace ingress
-for NAMESPACE in openstack ceph; do
-  helm upgrade --install ingress-${NAMESPACE} ${OSH_INFRA_PATH}/ingress \
-    --namespace=${NAMESPACE} \
-    ${OSH_EXTRA_HELM_ARGS} \
-    ${OSH_EXTRA_HELM_ARGS_INGRESS_OPENSTACK}
+helm upgrade --install ingress-openstack ${OSH_INFRA_PATH}/ingress \
+  --namespace=openstack \
+  ${OSH_EXTRA_HELM_ARGS} \
+  ${OSH_EXTRA_HELM_ARGS_INGRESS_OPENSTACK}
 
-  #NOTE: Wait for deploy
-  ./tools/deployment/common/wait-for-pods.sh ${NAMESPACE}
+#NOTE: Wait for deploy
+./tools/deployment/common/wait-for-pods.sh openstack
 
-  #NOTE: Display info
-  helm status ingress-${NAMESPACE}
-done
+#NOTE: Display info
+helm status ingress-openstack
+
+
+helm upgrade --install ingress-ceph ${OSH_INFRA_PATH}/ingress \
+  --namespace=ceph \
+  ${OSH_EXTRA_HELM_ARGS} \
+  ${OSH_EXTRA_HELM_ARGS_INGRESS_CEPH}
+
+#NOTE: Wait for deploy
+./tools/deployment/common/wait-for-pods.sh ceph
+
+#NOTE: Display info
+helm status ingress-ceph

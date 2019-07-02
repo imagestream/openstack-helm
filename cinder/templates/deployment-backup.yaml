@@ -27,6 +27,8 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: cinder-backup
+  annotations:
+    {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" }}
   labels:
 {{ tuple $envAll "cinder" "backup" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 4 }}
 spec:
@@ -40,17 +42,19 @@ spec:
       labels:
 {{ tuple $envAll "cinder" "backup" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
       annotations:
+{{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
     spec:
       serviceAccountName: {{ $serviceAccountName }}
+{{ dict "envAll" $envAll "application" "cinder" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 6 }}
       affinity:
 {{ tuple $envAll "cinder" "backup" | include "helm-toolkit.snippets.kubernetes_pod_anti_affinity" | indent 8 }}
       nodeSelector:
         {{ .Values.labels.backup.node_selector_key }}: {{ .Values.labels.backup.node_selector_value }}
       initContainers:
 {{ tuple $envAll "backup" $mounts_cinder_backup_init | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
-        {{- if eq .Values.conf.cinder.DEFAULT.backup_driver "cinder.backup.drivers.ceph" }}
+        {{- if (contains "cinder.backup.drivers.ceph" .Values.conf.cinder.DEFAULT.backup_driver) }}
         - name: ceph-backup-keyring-placement
 {{ tuple $envAll "cinder_backup" | include "helm-toolkit.snippets.image" | indent 10 }}
           securityContext:
@@ -61,6 +65,8 @@ spec:
             - name: RBD_USER
               value: {{ .Values.conf.cinder.DEFAULT.backup_ceph_user | quote }}
           volumeMounts:
+            - name: pod-tmp
+              mountPath: /tmp
             - name: etcceph
               mountPath: /etc/ceph
             - name: cinder-bin
@@ -72,7 +78,7 @@ spec:
               subPath: key
               readOnly: true
         {{ end }}
-        {{- if include "cinder.utils.is_ceph_volume_configured" $envAll }}
+        {{- if include "cinder.utils.has_ceph_backend" $envAll }}
         - name: ceph-keyring-placement
 {{ tuple $envAll "cinder_backup" | include "helm-toolkit.snippets.image" | indent 10 }}
           securityContext:
@@ -83,6 +89,8 @@ spec:
             - name: RBD_USER
               value: {{ index (index .Values.conf.backends (include "cinder.utils.ceph_volume_section_name" $envAll)) "rbd_user" | quote }}
           volumeMounts:
+            - name: pod-tmp
+              mountPath: /tmp
             - name: etcceph
               mountPath: /etc/ceph
             - name: cinder-bin
@@ -94,7 +102,7 @@ spec:
               subPath: key
               readOnly: true
         {{ end }}
-        {{- if eq .Values.conf.cinder.DEFAULT.backup_driver "cinder.backup.drivers.posix" }}
+        {{- if (contains "cinder.backup.drivers.posix" .Values.conf.cinder.DEFAULT.backup_driver) }}
         - name: ceph-backup-volume-perms
 {{ tuple $envAll "cinder_backup" | include "helm-toolkit.snippets.image" | indent 10 }}
           securityContext:
@@ -105,6 +113,8 @@ spec:
             - "cinder:"
             - {{ .Values.conf.cinder.DEFAULT.backup_posix_path }}
           volumeMounts:
+            - name: pod-tmp
+              mountPath: /tmp
             - name: cinder-backup
               mountPath: {{ .Values.conf.cinder.DEFAULT.backup_posix_path }}
         {{ end }}
@@ -119,6 +129,8 @@ spec:
             - "cinder:"
             - {{ ( split "://" .Values.conf.cinder.coordination.backend_url )._1 }}
           volumeMounts:
+            - name: pod-tmp
+              mountPath: /tmp
             - name: cinder-coordination
               mountPath: {{ ( split "://" .Values.conf.cinder.coordination.backend_url )._1 }}
         {{ end }}
@@ -126,14 +138,16 @@ spec:
         - name: cinder-backup
 {{ tuple $envAll "cinder_backup" | include "helm-toolkit.snippets.image" | indent 10 }}
 {{ tuple $envAll $envAll.Values.pod.resources.backup | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
+{{ dict "envAll" $envAll "application" "cinder" "container" "cinder-backup" | include "helm-toolkit.snippets.kubernetes_container_security_context" | indent 10 }}
           securityContext:
-            runAsUser: {{ .Values.pod.user.cinder.uid }}
             capabilities:
               add:
                 - SYS_ADMIN
           command:
             - /tmp/cinder-backup.sh
           volumeMounts:
+            - name: pod-tmp
+              mountPath: /tmp
             - name: cinder-bin
               mountPath: /tmp/cinder-backup.sh
               subPath: cinder-backup.sh
@@ -142,11 +156,13 @@ spec:
               mountPath: /etc/cinder/cinder.conf
               subPath: cinder.conf
               readOnly: true
+            {{- if .Values.conf.cinder.DEFAULT.log_config_append }}
             - name: cinder-etc
               mountPath: {{ .Values.conf.cinder.DEFAULT.log_config_append }}
               subPath: {{ base .Values.conf.cinder.DEFAULT.log_config_append }}
               readOnly: true
-            {{ if or (eq .Values.conf.cinder.DEFAULT.backup_driver "cinder.backup.drivers.ceph") (include "cinder.utils.is_ceph_volume_configured" $envAll) }}
+            {{- end }}
+            {{ if or (contains "cinder.backup.drivers.ceph" .Values.conf.cinder.DEFAULT.backup_driver) (include "cinder.utils.has_ceph_backend" $envAll) }}
             - name: etcceph
               mountPath: /etc/ceph
             {{- if not .Values.backup.external_ceph_rbd.enabled }}
@@ -160,12 +176,19 @@ spec:
               subPath: external-backup-ceph.conf
               readOnly: true
             {{- end }}
+            {{- if (contains "cinder.backup.drivers.ceph" .Values.conf.cinder.DEFAULT.backup_driver) }}
+            - name: ceph-backup-keyring
+              mountPath: /tmp/client-keyring
+              subPath: key
+              readOnly: true
+            {{- else }}
             - name: ceph-keyring
               mountPath: /tmp/client-keyring
               subPath: key
               readOnly: true
             {{- end }}
-            {{- if eq .Values.conf.cinder.DEFAULT.backup_driver "cinder.backup.drivers.posix" }}
+            {{- end }}
+            {{- if (contains "cinder.backup.drivers.posix" .Values.conf.cinder.DEFAULT.backup_driver) }}
             - name: cinder-backup
               mountPath: {{ .Values.conf.cinder.DEFAULT.backup_posix_path }}
             {{- end }}
@@ -194,33 +217,35 @@ spec:
               readOnly: true
 {{ if $mounts_cinder_backup.volumeMounts }}{{ toYaml $mounts_cinder_backup.volumeMounts | indent 12 }}{{ end }}
       volumes:
+        - name: pod-tmp
+          emptyDir: {}
         - name: cinder-etc
-          configMap:
-            name: cinder-etc
+          secret:
+            secretName: cinder-etc
             defaultMode: 0444
         - name: cinder-bin
           configMap:
             name: cinder-bin
             defaultMode: 0555
-        {{ if or (eq .Values.conf.cinder.DEFAULT.backup_driver "cinder.backup.drivers.ceph") (include "cinder.utils.is_ceph_volume_configured" $envAll) }}
+        {{ if or (contains "cinder.backup.drivers.ceph" .Values.conf.cinder.DEFAULT.backup_driver) (include "cinder.utils.has_ceph_backend" $envAll) }}
         - name: etcceph
           emptyDir: {}
         - name: ceph-etc
           configMap:
-            name: ceph-etc
+            name: {{ .Values.ceph_client.configmap }}
             defaultMode: 0444
         {{ end }}
-        {{- if eq .Values.conf.cinder.DEFAULT.backup_driver "cinder.backup.drivers.ceph" }}
+        {{- if (contains "cinder.backup.drivers.ceph" .Values.conf.cinder.DEFAULT.backup_driver) }}
         - name: ceph-backup-keyring
           secret:
             secretName: {{ .Values.secrets.rbd.backup | quote }}
         {{ end }}
-        {{- if include "cinder.utils.is_ceph_volume_configured" $envAll }}
+        {{- if include "cinder.utils.has_ceph_backend" $envAll }}
         - name: ceph-keyring
           secret:
             secretName: {{ .Values.secrets.rbd.volume | quote }}
         {{ end }}
-        {{- if eq .Values.conf.cinder.DEFAULT.backup_driver "cinder.backup.drivers.posix" }}
+        {{- if (contains "cinder.backup.drivers.posix" .Values.conf.cinder.DEFAULT.backup_driver) }}
         - name: cinder-backup
           persistentVolumeClaim:
             claimName: cinder-backup

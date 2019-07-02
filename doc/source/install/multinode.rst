@@ -200,8 +200,8 @@ Alternatively, this step can be performed by running the script directly:
 
   ./tools/deployment/multinode/080-keystone.sh
 
-Create Ceph endpoints and service account for use with keystone
----------------------------------------------------------------
+Deploy Rados Gateway for object store
+-------------------------------------
 
 .. literalinclude:: ../../../tools/deployment/multinode/090-ceph-radosgateway.sh
     :language: shell
@@ -309,7 +309,7 @@ Configure OpenStack
 
 Configuring OpenStack for a particular production use-case is beyond the scope
 of this guide. Please refer to the
-OpenStack `Configuration <https://docs.openstack.org/queens/configuration/>`_
+OpenStack `Configuration <https://docs.openstack.org/latest/configuration/>`_
 documentation for your selected version of OpenStack to determine
 what additional values overrides should be
 provided to the OpenStack-Helm charts to ensure appropriate networking,

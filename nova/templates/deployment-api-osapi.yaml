@@ -27,6 +27,8 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: nova-api-osapi
+  annotations:
+    {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" }}
   labels:
 {{ tuple $envAll "nova" "os-api" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 4 }}
 spec:
@@ -40,10 +42,12 @@ spec:
       labels:
 {{ tuple $envAll "nova" "os-api" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
       annotations:
+{{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
     spec:
       serviceAccountName: {{ $serviceAccountName }}
+{{ dict "envAll" $envAll "application" "nova" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 6 }}
       affinity:
 {{ tuple $envAll "nova" "os-api" | include "helm-toolkit.snippets.kubernetes_pod_anti_affinity" | indent 8 }}
       nodeSelector:
@@ -51,29 +55,11 @@ spec:
       terminationGracePeriodSeconds: {{ .Values.pod.lifecycle.termination_grace_period.osapi.timeout | default "30" }}
       initContainers:
 {{ tuple $envAll "api" $mounts_nova_api_osapi_init | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
-        - name: nova-osapi-init
-          image: {{ .Values.images.tags.nova_api}}
-          imagePullPolicy: {{ .Values.images.pull_policy }}
-          securityContext:
-            runAsUser: 0
-          env:
-            - name: NOVA_USER_UID
-              value: "{{ .Values.pod.user.nova.uid }}"
-          command:
-            - /tmp/nova-api-init.sh
-          volumeMounts:
-            - name: nova-bin
-              mountPath: /tmp/nova-api-init.sh
-              subPath: nova-api-init.sh
-              readOnly: true
-            - name: varlibnova
-              mountPath: /var/lib/nova
       containers:
         - name: nova-osapi
 {{ tuple $envAll "nova_api" | include "helm-toolkit.snippets.image" | indent 10 }}
 {{ tuple $envAll $envAll.Values.pod.resources.api | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
-          securityContext:
-            runAsUser: {{ .Values.pod.user.nova.uid }}
+{{ dict "envAll" $envAll "application" "nova" "container" "nova_osapi" | include "helm-toolkit.snippets.kubernetes_container_security_context" | indent 10 }}
           command:
             - /tmp/nova-api.sh
             - start
@@ -89,7 +75,15 @@ spec:
           readinessProbe:
             tcpSocket:
               port: {{ tuple "compute" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
+          livenessProbe:
+            tcpSocket:
+              port: {{ tuple "compute" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
+            initialDelaySeconds: 30
           volumeMounts:
+            - name: pod-tmp
+              mountPath: /tmp
+            - name: pod-var-nova
+              mountPath: /var/lib/nova
             - name: nova-bin
               mountPath: /tmp/nova-api.sh
               subPath: nova-api.sh
@@ -98,10 +92,12 @@ spec:
               mountPath: /etc/nova/nova.conf
               subPath: nova.conf
               readOnly: true
+            {{- if .Values.conf.nova.DEFAULT.log_config_append }}
             - name: nova-etc
               mountPath: {{ .Values.conf.nova.DEFAULT.log_config_append }}
               subPath: {{ base .Values.conf.nova.DEFAULT.log_config_append }}
               readOnly: true
+            {{- end }}
             - name: nova-etc
               mountPath: /etc/nova/api-paste.ini
               subPath: api-paste.ini
@@ -110,20 +106,23 @@ spec:
               mountPath: /etc/nova/policy.yaml
               subPath: policy.yaml
               readOnly: true
-            - name: varlibnova
-              mountPath: /var/lib/nova
+            - name: nova-etc
+              mountPath: /etc/nova/api_audit_map.conf
+              subPath: api_audit_map.conf
+              readOnly: true
 {{ if $mounts_nova_api_osapi.volumeMounts }}{{ toYaml $mounts_nova_api_osapi.volumeMounts | indent 12 }}{{ end }}
       volumes:
+        - name: pod-tmp
+          emptyDir: {}
+        - name: pod-var-nova
+          emptyDir: {}
         - name: nova-bin
           configMap:
             name: nova-bin
             defaultMode: 0555
         - name: nova-etc
-          configMap:
-            name: nova-etc
+          secret:
+            secretName: nova-etc
             defaultMode: 0444
-        - name: varlibnova
-          hostPath:
-            path: /var/lib/nova-os-helm
 {{ if $mounts_nova_api_osapi.volumes}}{{ toYaml $mounts_nova_api_osapi.volumes | indent 8 }}{{ end }}
 {{- end }}

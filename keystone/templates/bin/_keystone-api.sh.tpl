@@ -26,20 +26,34 @@ function start () {
     cp -a $(type -p ${KEYSTONE_WSGI_SCRIPT}) /var/www/cgi-bin/keystone/
   done
 
+  {{- if .Values.conf.software.apache2.a2enmod }}
+    {{- range .Values.conf.software.apache2.a2enmod }}
+  a2enmod {{ . }}
+    {{- end }}
+  {{- end }}
+
+  {{- if .Values.conf.software.apache2.a2dismod }}
+    {{- range .Values.conf.software.apache2.a2dismod }}
+  a2dismod {{ . }}
+    {{- end }}
+  {{- end }}
+
   if [ -f /etc/apache2/envvars ]; then
      # Loading Apache2 ENV variables
      source /etc/apache2/envvars
   fi
 
-  # Now that we mount /var/run as emptydir this can exist if we crash and respawn!
-  rm -f /var/run/apache2/apache2.pid
+  if [ -f /var/run/apache2/apache2.pid ]; then
+     # Remove the stale pid for debian/ubuntu images
+     rm -f /var/run/apache2/apache2.pid
+  fi
 
   # Start Apache2
-  exec apache2 -DFOREGROUND
+  exec {{ .Values.conf.software.apache2.binary }} {{ .Values.conf.software.apache2.start_parameters }}
 }
 
 function stop () {
-  apachectl -k graceful-stop
+  {{ .Values.conf.software.apache2.binary }} -k graceful-stop
 }
 
 $COMMAND

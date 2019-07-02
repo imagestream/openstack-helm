@@ -41,20 +41,20 @@ release_group: null
 
 images:
   tags:
-    test: docker.io/kolla/ubuntu-source-rally:4.0.0
-    bootstrap: docker.io/openstackhelm/heat:newton
+    test: docker.io/xrally/xrally-openstack:1.3.0
+    bootstrap: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
     dep_check: quay.io/stackanetes/kubernetes-entrypoint:v0.3.1
-    db_init: docker.io/openstackhelm/heat:newton
-    mistral_db_sync: docker.io/kolla/ubuntu-source-mistral-api:3.0.3
-    db_drop: docker.io/openstackhelm/heat:newton
+    db_init: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
+    mistral_db_sync: docker.io/kolla/ubuntu-source-mistral-api:ocata
+    db_drop: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
     rabbit_init: docker.io/rabbitmq:3.7-management
-    ks_user: docker.io/openstackhelm/heat:newton
-    ks_service: docker.io/openstackhelm/heat:newton
-    ks_endpoints: docker.io/openstackhelm/heat:newton
-    mistral_api: docker.io/kolla/ubuntu-source-mistral-api:3.0.3
-    mistral_engine: docker.io/kolla/ubuntu-source-mistral-engine:3.0.3
-    mistral_event_engine: docker.io/kolla/ubuntu-source-mistral-engine:3.0.3
-    mistral_executor: docker.io/kolla/ubuntu-source-mistral-executor:3.0.3
+    ks_user: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
+    ks_service: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
+    ks_endpoints: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
+    mistral_api: docker.io/kolla/ubuntu-source-mistral-api:ocata
+    mistral_engine: docker.io/kolla/ubuntu-source-mistral-engine:ocata
+    mistral_event_engine: docker.io/kolla/ubuntu-source-mistral-engine:ocata
+    mistral_executor: docker.io/kolla/ubuntu-source-mistral-executor:ocata
     image_repo_sync: docker.io/docker:17.07.0
   pull_policy: "IfNotPresent"
   local_registry:
@@ -230,14 +230,14 @@ endpoints:
       test:
         role: admin
         region_name: RegionOne
-        username: test
+        username: mistral-test
         password: password
         project_name: test
         user_domain_name: service
         project_domain_name: service
     hosts:
-      default: keystone-api
-      public: keystone
+      default: keystone
+      internal: keystone-api
     host_fqdn_override:
       default: null
     path:
@@ -288,6 +288,9 @@ endpoints:
       mistral:
         username: mistral
         password: password
+    statefulset:
+      replicas: 2
+      name: rabbitmq-rabbitmq
     hosts:
       default: rabbitmq
     host_fqdn_override:
@@ -459,7 +462,7 @@ conf:
       port: null
       api_workers: 8
     coordination:
-      backend_url: null
+      backend_url: ""
     database:
       max_retries: -1
     keystone_authtoken:
@@ -482,7 +485,7 @@ conf:
         - default
     logger_root:
       level: WARNING
-      handlers: null
+      handlers: stdout
     logger_mistral:
       level: INFO
       handlers:
@@ -522,8 +525,10 @@ conf:
       formatter: context
     formatter_context:
       class: oslo_log.formatters.ContextFormatter
+      datefmt: "%Y-%m-%d %H:%M:%S"
     formatter_default:
       format: "%(message)s"
+      datefmt: "%Y-%m-%d %H:%M:%S"
 
 pod:
   user:
@@ -535,25 +540,43 @@ pod:
         default: preferredDuringSchedulingIgnoredDuringExecution
       topologyKey:
         default: kubernetes.io/hostname
+      weight:
+        default: 10
   mounts:
     mistral_api:
       init_container: null
       mistral_api:
+        volumeMounts:
+        volumes:
     mistral_executor:
       init_container: null
       mistral_executor:
+        volumeMounts:
+        volumes:
     mistral_engine:
       init_container: null
       mistral_engine:
+        volumeMounts:
+        volumes:
     mistral_event_engine:
       init_container: null
       mistral_event_engine:
+        volumeMounts:
+        volumes:
     mistral_bootstrap:
       init_container: null
       mistral_bootstrap:
+        volumeMounts:
+        volumes:
     mistral_tests:
       init_container: null
       mistral_tests:
+        volumeMounts:
+        volumes:
+    mistral_db_sync:
+      mistral_db_sync:
+        volumeMounts:
+        volumes:
   replicas:
     api: 1
     engine: 1
@@ -675,6 +698,28 @@ pod:
           memory: "1024Mi"
           cpu: "2000m"
 
+network_policy:
+  mistral:
+    ingress:
+      - from:
+        - podSelector:
+            matchLabels:
+              application: mistral
+        - podSelector:
+            matchLabels:
+              application: horizon
+        - podSelector:
+            matchLabels:
+              application: ingress
+        - podSelector:
+            matchLabels:
+              application: heat
+        ports:
+        - protocol: TCP
+          port: 80
+        - protocol: TCP
+          port: 8989
+
 manifests:
   configmap_bin: true
   configmap_etc: true
@@ -692,6 +737,7 @@ manifests:
   job_rabbit_init: true
   pdb_api: true
   pod_rally_test: true
+  network_policy: false
   secret_db: true
   secret_keystone: true
   secret_rabbitmq: true

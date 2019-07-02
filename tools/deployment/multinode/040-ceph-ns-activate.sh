@@ -18,32 +18,25 @@ set -xe
 
 #NOTE: Deploy command
 CEPH_PUBLIC_NETWORK="$(./tools/deployment/multinode/kube-node-subnet.sh)"
-CEPH_CLUSTER_NETWORK="$(./tools/deployment/multinode/kube-node-subnet.sh)"
+CEPH_CLUSTER_NETWORK="${CEPH_PUBLIC_NETWORK}"
 tee /tmp/ceph-openstack-config.yaml <<EOF
 endpoints:
-  identity:
-    namespace: openstack
-  object_store:
-    namespace: ceph
   ceph_mon:
     namespace: ceph
 network:
   public: ${CEPH_PUBLIC_NETWORK}
   cluster: ${CEPH_CLUSTER_NETWORK}
 deployment:
-  storage_secrets: false
   ceph: false
   rbd_provisioner: false
   cephfs_provisioner: false
   client_secrets: true
-  rgw_keystone_user_and_endpoints: false
 bootstrap:
   enabled: false
-conf:
-  rgw_ks:
-    enabled: true
 EOF
-helm upgrade --install ceph-openstack-config ./ceph-provisioners \
+
+: ${OSH_INFRA_PATH:="../openstack-helm-infra"}
+helm upgrade --install ceph-openstack-config ${OSH_INFRA_PATH}/ceph-provisioners \
   --namespace=openstack \
   --values=/tmp/ceph-openstack-config.yaml \
   ${OSH_EXTRA_HELM_ARGS} \

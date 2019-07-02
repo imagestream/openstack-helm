@@ -24,6 +24,8 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: ironic-manage-cleaning-network
+  annotations:
+    {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" }}
 spec:
   template:
     metadata:
@@ -48,11 +50,15 @@ spec:
           command:
             - /tmp/manage-cleaning-network.sh
           volumeMounts:
+            - name: pod-tmp
+              mountPath: /tmp
             - name: ironic-bin
               mountPath: /tmp/manage-cleaning-network.sh
               subPath: manage-cleaning-network.sh
               readOnly: true
       volumes:
+        - name: pod-tmp
+          emptyDir: {}
         - name: ironic-bin
           configMap:
             name: ironic-bin

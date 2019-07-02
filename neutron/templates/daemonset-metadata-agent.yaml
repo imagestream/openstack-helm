@@ -29,6 +29,8 @@ apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: neutron-metadata-agent
+  annotations:
+    {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" }}
   labels:
 {{ tuple $envAll "neutron" "metadata-agent" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 4 }}
 spec:
@@ -41,9 +43,11 @@ spec:
       labels:
 {{ tuple $envAll "neutron" "metadata-agent" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
       annotations:
+{{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
     spec:
+{{ dict "envAll" $envAll "application" "neutron" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 6 }}
       serviceAccountName: {{ $serviceAccountName }}
       nodeSelector:
         {{ .Values.labels.agent.metadata.node_selector_key }}: {{ .Values.labels.agent.metadata.node_selector_value }}
@@ -67,6 +71,8 @@ spec:
           command:
             - /tmp/neutron-metadata-agent-init.sh
           volumeMounts:
+            - name: pod-tmp
+              mountPath: /tmp
             - name: neutron-bin
               mountPath: /tmp/neutron-metadata-agent-init.sh
               subPath: neutron-metadata-agent-init.sh
@@ -82,23 +88,55 @@ spec:
 {{ tuple $envAll "neutron_metadata" | include "helm-toolkit.snippets.image" | indent 10 }}
 {{ tuple $envAll $envAll.Values.pod.resources.agent.metadata | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
           securityContext:
-            runAsUser: {{ .Values.pod.user.neutron.uid }}
             privileged: true
+          readinessProbe:
+            exec:
+              command:
+                - python
+                - /tmp/health-probe.py
+                - --config-file
+                - /etc/neutron/neutron.conf
+                - --config-file
+                - /etc/neutron/metadata_agent.ini
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 35
+          livenessProbe:
+            exec:
+              command:
+                - python
+                - /tmp/health-probe.py
+                - --config-file
+                - /etc/neutron/neutron.conf
+                - --config-file
+                - /etc/neutron/metadata_agent.ini
+                - --liveness-probe
+            initialDelaySeconds: 90
+            periodSeconds: 60
+            timeoutSeconds: 45
           command:
             - /tmp/neutron-metadata-agent.sh
           volumeMounts:
+            - name: pod-tmp
+              mountPath: /tmp
             - name: neutron-bin
               mountPath: /tmp/neutron-metadata-agent.sh
               subPath: neutron-metadata-agent.sh
+              readOnly: true
+            - name: neutron-bin
+              mountPath: /tmp/health-probe.py
+              subPath: health-probe.py
               readOnly: true
             - name: neutron-etc
               mountPath: /etc/neutron/neutron.conf
               subPath: neutron.conf
               readOnly: true
+            {{- if .Values.conf.neutron.DEFAULT.log_config_append }}
             - name: neutron-etc
               mountPath: {{ .Values.conf.neutron.DEFAULT.log_config_append }}
               subPath: {{ base .Values.conf.neutron.DEFAULT.log_config_append }}
               readOnly: true
+            {{- end }}
             - name: neutron-etc
               mountPath: /etc/neutron/plugins/ml2/ml2_conf.ini
               subPath: ml2_conf.ini
@@ -143,13 +181,15 @@ spec:
             {{- end }}
 {{ if $mounts_neutron_metadata_agent.volumeMounts }}{{ toYaml $mounts_neutron_metadata_agent.volumeMounts | indent 12 }}{{ end }}
       volumes:
+        - name: pod-tmp
+          emptyDir: {}
         - name: neutron-bin
           configMap:
             name: neutron-bin
             defaultMode: 0555
         - name: neutron-etc
-          configMap:
-            name: {{ $configMapName }}
+          secret:
+            secretName: {{ $configMapName }}
             defaultMode: 0444
         - name: socket
           hostPath:

@@ -27,6 +27,8 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: ceilometer-api
+  annotations:
+    {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" }}
   labels:
 {{ tuple $envAll "ceilometer" "api" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 4 }}
 spec:
@@ -40,6 +42,7 @@ spec:
       labels:
 {{ tuple $envAll "ceilometer" "api" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
       annotations:
+{{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
     spec:
@@ -71,6 +74,8 @@ spec:
             tcpSocket:
               port: {{ tuple "metering" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
           volumeMounts:
+            - name: pod-tmp
+              mountPath: /tmp
             - name: pod-etc-ceilometer
               mountPath: /etc/ceilometer
             - name: ceilometer-etc
@@ -84,6 +89,10 @@ spec:
             - name: ceilometer-etc
               mountPath: /etc/ceilometer/policy.json
               subPath: policy.json
+              readOnly: true
+            - name: ceilometer-etc
+              mountPath: /etc/ceilometer/api_audit_map.conf
+              subPath: api_audit_map.conf
               readOnly: true
             - name: ceilometer-etc
               mountPath: /etc/ceilometer/event_definitions.yaml
@@ -102,20 +111,28 @@ spec:
               subPath: gnocchi_resources.yaml
               readOnly: true
             - name: ceilometer-etc
-              mountPath: /etc/apache2/conf-enabled/000-default.conf
+              mountPath: {{ .Values.conf.software.apache2.conf_dir }}/000-default.conf
               subPath: wsgi-ceilometer.conf
               readOnly: true
+{{- if .Values.conf.security }}
+            - name: ceilometer-etc
+              mountPath: {{ .Values.conf.software.apache2.conf_dir }}/security.conf
+              subPath: security.conf
+              readOnly: true
+{{- end }}
             - name: ceilometer-bin
               mountPath: /tmp/ceilometer-api.sh
               subPath: ceilometer-api.sh
               readOnly: true
 {{ if $mounts_ceilometer_api.volumeMounts }}{{ toYaml $mounts_ceilometer_api.volumeMounts | indent 12 }}{{ end }}
       volumes:
+        - name: pod-tmp
+          emptyDir: {}
         - name: pod-etc-ceilometer
           emptyDir: {}
         - name: ceilometer-etc
-          configMap:
-            name: ceilometer-etc
+          secret:
+            secretName: ceilometer-etc
             defaultMode: 0444
         - name: ceilometer-bin
           configMap:

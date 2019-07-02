@@ -27,6 +27,8 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: magnum-api
+  annotations:
+    {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" }}
   labels:
 {{ tuple $envAll "magnum" "api" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 4 }}
 spec:
@@ -40,6 +42,7 @@ spec:
       labels:
 {{ tuple $envAll "magnum" "api" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
       annotations:
+{{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
     spec:
@@ -77,6 +80,8 @@ spec:
             initialDelaySeconds: 15
             periodSeconds: 10
           volumeMounts:
+            - name: pod-tmp
+              mountPath: /tmp
             - name: magnum-bin
               mountPath: /tmp/magnum-api.sh
               subPath: magnum-api.sh
@@ -89,10 +94,12 @@ spec:
               mountPath: /etc/magnum/magnum.conf
               subPath: magnum.conf
               readOnly: true
+            {{- if .Values.conf.magnum.DEFAULT.log_config_append }}
             - name: magnum-etc
               mountPath: {{ .Values.conf.magnum.DEFAULT.log_config_append }}
               subPath: {{ base .Values.conf.magnum.DEFAULT.log_config_append }}
               readOnly: true
+            {{- end }}
             - name: magnum-etc
               mountPath: /etc/magnum/api-paste.ini
               subPath: api-paste.ini
@@ -105,6 +112,8 @@ spec:
               mountPath: {{ .Values.conf.magnum.oslo_concurrency.lock_path }}
 {{ if $mounts_magnum_api.volumeMounts }}{{ toYaml $mounts_magnum_api.volumeMounts | indent 12 }}{{ end }}
       volumes:
+        - name: pod-tmp
+          emptyDir: {}
         - name: pod-etc-magnum
           emptyDir: {}
         - name: pod-var-cache-magnum
@@ -114,8 +123,8 @@ spec:
             name: magnum-bin
             defaultMode: 0555
         - name: magnum-etc
-          configMap:
-            name: magnum-etc
+          secret:
+            secretName: magnum-etc
             defaultMode: 0444
         - name: magnum-lock-path
           emptyDir: {}

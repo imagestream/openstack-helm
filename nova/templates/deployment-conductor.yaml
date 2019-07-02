@@ -27,6 +27,8 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: nova-conductor
+  annotations:
+    {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" }}
   labels:
 {{ tuple $envAll "nova" "conductor" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 4 }}
 spec:
@@ -40,10 +42,12 @@ spec:
       labels:
 {{ tuple $envAll "nova" "conductor" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
       annotations:
+{{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
     spec:
       serviceAccountName: {{ $serviceAccountName }}
+{{ dict "envAll" $envAll "application" "nova" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 6 }}
       affinity:
 {{ tuple $envAll "nova" "conductor" | include "helm-toolkit.snippets.kubernetes_pod_anti_affinity" | indent 8 }}
       nodeSelector:
@@ -54,23 +58,55 @@ spec:
         - name: nova-conductor
 {{ tuple $envAll "nova_conductor" | include "helm-toolkit.snippets.image" | indent 10 }}
 {{ tuple $envAll $envAll.Values.pod.resources.conductor | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
-          securityContext:
-            runAsUser: {{ .Values.pod.user.nova.uid }}
+{{ dict "envAll" $envAll "application" "nova" "container" "nova_conductor" | include "helm-toolkit.snippets.kubernetes_container_security_context" | indent 10 }}
+          readinessProbe:
+            exec:
+              command:
+                - python
+                - /tmp/health-probe.py
+                - --config-file
+                - /etc/nova/nova.conf
+                - --service-queue-name
+                - conductor
+            initialDelaySeconds: 80
+            periodSeconds: 90
+            timeoutSeconds: 70
+          livenessProbe:
+            exec:
+              command:
+                - python
+                - /tmp/health-probe.py
+                - --config-file
+                - /etc/nova/nova.conf
+                - --service-queue-name
+                - conductor
+                - --liveness-probe
+            initialDelaySeconds: 120
+            periodSeconds: 90
+            timeoutSeconds: 70
           command:
             - /tmp/nova-conductor.sh
           volumeMounts:
+            - name: pod-tmp
+              mountPath: /tmp
             - name: nova-bin
               mountPath: /tmp/nova-conductor.sh
               subPath: nova-conductor.sh
+              readOnly: true
+            - name: nova-bin
+              mountPath: /tmp/health-probe.py
+              subPath: health-probe.py
               readOnly: true
             - name: nova-etc
               mountPath: /etc/nova/nova.conf
               subPath: nova.conf
               readOnly: true
+            {{- if .Values.conf.nova.DEFAULT.log_config_append }}
             - name: nova-etc
               mountPath: {{ .Values.conf.nova.DEFAULT.log_config_append }}
               subPath: {{ base .Values.conf.nova.DEFAULT.log_config_append }}
               readOnly: true
+            {{- end }}
             - name: nova-etc
               mountPath: /etc/nova/policy.yaml
               subPath: policy.yaml
@@ -79,13 +115,15 @@ spec:
               mountPath: /var/lib/nova
 {{ if $mounts_nova_conductor.volumeMounts }}{{ toYaml $mounts_nova_conductor.volumeMounts | indent 12 }}{{ end }}
       volumes:
+        - name: pod-tmp
+          emptyDir: {}
         - name: nova-bin
           configMap:
             name: nova-bin
             defaultMode: 0555
         - name: nova-etc
-          configMap:
-            name: nova-etc
+          secret:
+            secretName: nova-etc
             defaultMode: 0444
         - name: varlibnova
           hostPath:

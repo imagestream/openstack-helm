@@ -49,6 +49,8 @@ spec:
           command:
             - /tmp/domain-manage-init.sh
           volumeMounts:
+            - name: pod-tmp
+              mountPath: /tmp
             - name: keystone-bin
               mountPath: /tmp/domain-manage-init.sh
               subPath: domain-manage-init.sh
@@ -64,6 +66,8 @@ spec:
           command:
             - /tmp/domain-manage.sh
           volumeMounts:
+            - name: pod-tmp
+              mountPath: /tmp
             - name: etckeystonedomains
               mountPath: {{ .Values.conf.keystone.identity.domain_config_dir | default "/etc/keystonedomains" }}
             - name: etckeystone
@@ -80,10 +84,12 @@ spec:
               mountPath: /etc/keystone/keystone.conf
               subPath: keystone.conf
               readOnly: true
+            {{- if .Values.conf.keystone.DEFAULT.log_config_append }}
             - name: keystone-etc
               mountPath: {{ .Values.conf.keystone.DEFAULT.log_config_append }}
               subPath: {{ base .Values.conf.keystone.DEFAULT.log_config_append }}
               readOnly: true
+            {{- end }}
 {{- range $k, $v := .Values.conf.ks_domains }}
             - name: keystone-etc
               mountPath: {{ $envAll.Values.conf.keystone.identity.domain_config_dir | default "/etc/keystonedomains" }}/keystone.{{ $k }}.json
@@ -98,13 +104,15 @@ spec:
               mountPath: {{ .Values.conf.keystone.credential.key_repository }}
 {{ if $mounts_keystone_domain_manage.volumeMounts }}{{ toYaml $mounts_keystone_domain_manage.volumeMounts | indent 12 }}{{ end }}
       volumes:
+        - name: pod-tmp
+          emptyDir: {}
         - name: etckeystone
           emptyDir: {}
         - name: etckeystonedomains
           emptyDir: {}
         - name: keystone-etc
-          configMap:
-            name: keystone-etc
+          secret:
+            secretName: keystone-etc
             defaultMode: 0444
         - name: keystone-bin
           configMap:

@@ -27,6 +27,8 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: magnum-conductor
+  annotations:
+    {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" }}
   labels:
 {{ tuple $envAll "magnum" "conductor" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 4 }}
 spec:
@@ -40,6 +42,8 @@ spec:
     metadata:
       labels:
 {{ tuple $envAll "magnum" "conductor" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+      annotations:
+{{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
     spec:
       serviceAccountName: {{ $serviceAccountName }}
       affinity:
@@ -61,6 +65,8 @@ spec:
           command:
             - /tmp/magnum-conductor-init.sh
           volumeMounts:
+            - name: pod-tmp
+              mountPath: /tmp
             - name: magnum-bin
               mountPath: /tmp/magnum-conductor-init.sh
               subPath: magnum-conductor-init.sh
@@ -76,6 +82,8 @@ spec:
           command:
             - /tmp/magnum-conductor.sh
           volumeMounts:
+            - name: pod-tmp
+              mountPath: /tmp
             - name: magnum-bin
               mountPath: /tmp/magnum-conductor.sh
               subPath: magnum-conductor.sh
@@ -86,10 +94,12 @@ spec:
               mountPath: /etc/magnum/magnum.conf
               subPath: magnum.conf
               readOnly: true
+            {{- if .Values.conf.magnum.DEFAULT.log_config_append }}
             - name: magnum-etc
               mountPath: {{ .Values.conf.magnum.DEFAULT.log_config_append }}
               subPath: {{ base .Values.conf.magnum.DEFAULT.log_config_append }}
               readOnly: true
+            {{- end }}
             - name: magnum-etc
               mountPath: /etc/magnum/policy.json
               subPath: policy.json
@@ -100,6 +110,8 @@ spec:
               mountPath: {{ .Values.conf.magnum.oslo_concurrency.lock_path }}
 {{ if $mounts_magnum_conductor.volumeMounts }}{{ toYaml $mounts_magnum_conductor.volumeMounts | indent 12 }}{{ end }}
       volumes:
+        - name: pod-tmp
+          emptyDir: {}
         - name: pod-etc-magnum
           emptyDir: {}
         - name: pod-shared
@@ -109,8 +121,8 @@ spec:
             name: magnum-bin
             defaultMode: 0555
         - name: magnum-etc
-          configMap:
-            name: magnum-etc
+          secret:
+            secretName: magnum-etc
             defaultMode: 0444
         - name: magnum-lock-path
           emptyDir: {}

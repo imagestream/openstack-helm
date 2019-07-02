@@ -27,10 +27,15 @@ apiVersion: batch/v1beta1
 kind: CronJob
 metadata:
   name: heat-engine-cleaner
+  annotations:
+    {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" }}
 spec:
   schedule: {{ .Values.jobs.engine_cleaner.cron | quote }}
   successfulJobsHistoryLimit: {{ .Values.jobs.engine_cleaner.history.success }}
   failedJobsHistoryLimit: {{ .Values.jobs.engine_cleaner.history.failed }}
+  {{- if .Values.jobs.engine_cleaner.starting_deadline }}
+  startingDeadlineSeconds: {{ .Values.jobs.engine_cleaner.starting_deadline }}
+  {{- end }}
   concurrencyPolicy: Forbid
   jobTemplate:
     metadata:
@@ -38,6 +43,9 @@ spec:
 {{ tuple $envAll "heat" "engine-cleaner" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
     spec:
       template:
+        metadata:
+          labels:
+{{ tuple $envAll "heat" "engine-cleaner" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 12 }}
         spec:
           serviceAccountName: {{ $serviceAccountName }}
           restartPolicy: OnFailure
@@ -52,6 +60,8 @@ spec:
               command:
                 - /tmp/heat-engine-cleaner.sh
               volumeMounts:
+              - name: pod-tmp
+                mountPath: /tmp
               - name: heat-bin
                 mountPath: /tmp/heat-engine-cleaner.sh
                 subPath: heat-engine-cleaner.sh
@@ -62,21 +72,25 @@ spec:
                 mountPath: /etc/heat/heat.conf
                 subPath: heat.conf
                 readOnly: true
+              {{ if .Values.conf.heat.DEFAULT.log_config_append }}
               - name: heat-etc
                 mountPath: {{ .Values.conf.heat.DEFAULT.log_config_append }}
                 subPath: {{ base .Values.conf.heat.DEFAULT.log_config_append }}
                 readOnly: true
+              {{ end }}
 {{ if $mounts_heat_engine_cleaner.volumeMounts }}{{ toYaml $mounts_heat_engine_cleaner.volumeMounts | indent 14 }}{{ end }}
           volumes:
-          - name: etcheat
-            emptyDir: {}
-          - name: heat-etc
-            configMap:
-              name: heat-etc
-              defaultMode: 0444
-          - name: heat-bin
-            configMap:
-              name: heat-bin
-              defaultMode: 0555
-{{ if $mounts_heat_engine_cleaner.volumes }}{{ toYaml $mounts_heat_engine_cleaner.volumes | indent 10 }}{{ end }}
+            - name: pod-tmp
+              emptyDir: {}
+            - name: etcheat
+              emptyDir: {}
+            - name: heat-etc
+              secret:
+                secretName: heat-etc
+                defaultMode: 0444
+            - name: heat-bin
+              configMap:
+                name: heat-bin
+                defaultMode: 0555
+{{ if $mounts_heat_engine_cleaner.volumes }}{{ toYaml $mounts_heat_engine_cleaner.volumes | indent 12 }}{{ end }}
 {{- end }}

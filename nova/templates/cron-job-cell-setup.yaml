@@ -24,10 +24,15 @@ apiVersion: batch/v1beta1
 kind: CronJob
 metadata:
   name: nova-cell-setup
+  annotations:
+    {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" }}
 spec:
   schedule: {{ .Values.jobs.cell_setup.cron | quote }}
   successfulJobsHistoryLimit: {{ .Values.jobs.cell_setup.history.success }}
   failedJobsHistoryLimit: {{ .Values.jobs.cell_setup.history.failed }}
+  {{- if .Values.jobs.cell_setup.starting_deadline }}
+  startingDeadlineSeconds: {{ .Values.jobs.cell_setup.starting_deadline }}
+  {{- end }}
   concurrencyPolicy: Forbid
   jobTemplate:
     metadata:
@@ -52,6 +57,8 @@ spec:
               command:
                 - /tmp/cell-setup.sh
               volumeMounts:
+                - name: pod-tmp
+                  mountPath: /tmp
                 - name: nova-bin
                   mountPath: /tmp/cell-setup.sh
                   subPath: cell-setup.sh
@@ -62,20 +69,24 @@ spec:
                   mountPath: /etc/nova/nova.conf
                   subPath: nova.conf
                   readOnly: true
+                {{- if .Values.conf.nova.DEFAULT.log_config_append }}
                 - name: nova-etc
                   mountPath: {{ .Values.conf.nova.DEFAULT.log_config_append }}
                   subPath: {{ base .Values.conf.nova.DEFAULT.log_config_append }}
                   readOnly: true
+                {{- end }}
                 - name: nova-etc
                   mountPath: /etc/nova/policy.yaml
                   subPath: policy.yaml
                   readOnly: true
           volumes:
+            - name: pod-tmp
+              emptyDir: {}
             - name: etcnova
               emptyDir: {}
             - name: nova-etc
-              configMap:
-                name: nova-etc
+              secret:
+                secretName: nova-etc
                 defaultMode: 0444
             - name: nova-bin
               configMap:

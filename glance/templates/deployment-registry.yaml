@@ -27,6 +27,8 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: glance-registry
+  annotations:
+    {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" }}
   labels:
 {{ tuple $envAll "glance" "registry" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 4 }}
 spec:
@@ -40,10 +42,12 @@ spec:
       labels:
 {{ tuple $envAll "glance" "registry" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
       annotations:
+{{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
     spec:
       serviceAccountName: {{ $serviceAccountName }}
+{{ dict "envAll" $envAll "application" "glance" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 6 }}
       affinity:
 {{ tuple $envAll "glance" "registry" | include "helm-toolkit.snippets.kubernetes_pod_anti_affinity" | indent 8 }}
       nodeSelector:
@@ -55,8 +59,7 @@ spec:
         - name: glance-registry
 {{ tuple $envAll "glance_registry" | include "helm-toolkit.snippets.image" | indent 10 }}
 {{ tuple $envAll $envAll.Values.pod.resources.registry | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
-          securityContext:
-            runAsUser: {{ .Values.pod.user.glance.uid }}
+{{ dict "envAll" $envAll "application" "glance" "container" "glance_registry" | include "helm-toolkit.snippets.kubernetes_container_security_context" | indent 10 }}
           command:
             - /tmp/glance-registry.sh
             - start
@@ -72,7 +75,13 @@ spec:
           readinessProbe:
             tcpSocket:
               port: {{ tuple "image_registry" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
+          livenessProbe:
+            tcpSocket:
+              port: {{ tuple "image_registry" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
+            initialDelaySeconds: 30
           volumeMounts:
+            - name: pod-tmp
+              mountPath: /tmp
             - name: etcglance
               mountPath: /etc/glance
             - name: glance-bin
@@ -84,9 +93,15 @@ spec:
               subPath: glance-registry.conf
               readOnly: true
             - name: glance-etc
+              mountPath: /etc/glance/api_audit_map.conf
+              subPath: api_audit_map.conf
+              readOnly: true
+            {{- if .Values.conf.glance.DEFAULT.log_config_append }}
+            - name: glance-etc
               mountPath: {{ .Values.conf.glance.DEFAULT.log_config_append }}
               subPath: {{ base .Values.conf.glance.DEFAULT.log_config_append }}
               readOnly: true
+            {{- end }}
             - name: glance-etc
               mountPath: /etc/glance/glance-registry-paste.ini
               subPath: glance-registry-paste.ini
@@ -97,6 +112,8 @@ spec:
               readOnly: true
 {{ if $mounts_glance_registry.volumeMounts }}{{ toYaml $mounts_glance_registry.volumeMounts | indent 12 }}{{ end }}
       volumes:
+        - name: pod-tmp
+          emptyDir: {}
         - name: etcglance
           emptyDir: {}
         - name: glance-bin
@@ -104,8 +121,8 @@ spec:
             name: glance-bin
             defaultMode: 0555
         - name: glance-etc
-          configMap:
-            name: glance-etc
+          secret:
+            secretName: glance-etc
             defaultMode: 0444
 {{ if $mounts_glance_registry.volumes }}{{ toYaml $mounts_glance_registry.volumes | indent 8 }}{{ end }}
 {{- end }}

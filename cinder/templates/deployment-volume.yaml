@@ -27,6 +27,8 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: cinder-volume
+  annotations:
+    {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" }}
   labels:
 {{ tuple $envAll "cinder" "volume" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 4 }}
 spec:
@@ -40,17 +42,19 @@ spec:
       labels:
 {{ tuple $envAll "cinder" "volume" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
       annotations:
+{{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
     spec:
       serviceAccountName: {{ $serviceAccountName }}
+{{ dict "envAll" $envAll "application" "cinder" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 6 }}
       affinity:
 {{ tuple $envAll "cinder" "volume" | include "helm-toolkit.snippets.kubernetes_pod_anti_affinity" | indent 8 }}
       nodeSelector:
         {{ .Values.labels.volume.node_selector_key }}: {{ .Values.labels.volume.node_selector_value }}
       initContainers:
 {{ tuple $envAll "volume" $mounts_cinder_volume_init | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
-        {{- if include "cinder.utils.is_ceph_volume_configured" $envAll }}
+        {{- if include "cinder.utils.has_ceph_backend" $envAll }}
         - name: ceph-keyring-placement
 {{ tuple $envAll "cinder_volume" | include "helm-toolkit.snippets.image" | indent 10 }}
           securityContext:
@@ -61,6 +65,8 @@ spec:
             - name: RBD_USER
               value: {{ index (index .Values.conf.backends (include "cinder.utils.ceph_volume_section_name" $envAll)) "rbd_user" | quote }}
           volumeMounts:
+            - name: pod-tmp
+              mountPath: /tmp
             - name: etcceph
               mountPath: /etc/ceph
             - name: cinder-bin
@@ -83,35 +89,71 @@ spec:
             - "cinder:"
             - {{ ( split "://" .Values.conf.cinder.coordination.backend_url )._1 }}
           volumeMounts:
+            - name: pod-tmp
+              mountPath: /tmp
             - name: cinder-coordination
               mountPath: {{ ( split "://" .Values.conf.cinder.coordination.backend_url )._1 }}
         {{ end }}
+        - name: init-cinder-conf
+          image: {{ .Values.images.tags.ks_user }}
+          imagePullPolicy: {{ .Values.images.pull_policy }}
+          securityContext:
+            runAsUser: 0
+          command:
+            - /tmp/retrieve-internal-tenant.sh
+          volumeMounts:
+            - name: pod-tmp
+              mountPath: /tmp
+            - name: cinder-bin
+              mountPath: /tmp/retrieve-internal-tenant.sh
+              subPath: retrieve-internal-tenant.sh
+              readOnly: true
+            - name: pod-shared
+              mountPath: /tmp/pod-shared
+          env:
+{{- with $env := dict "ksUserSecret" .Values.secrets.identity.admin }}
+{{- include "helm-toolkit.snippets.keystone_openrc_env_vars" $env | indent 12 }}
+{{- end }}
+            - name: INTERNAL_PROJECT_NAME
+              value: {{ .Values.conf.cinder.DEFAULT.internal_project_name | quote }}
+            - name: INTERNAL_USER_NAME
+              value: {{ .Values.conf.cinder.DEFAULT.internal_user_name | quote }}
+
+{{- with $env := dict "ksUserSecret" (index .Values.secrets.identity "cinder" ) }}
+{{- include "helm-toolkit.snippets.keystone_user_create_env_vars" $env | indent 12 }}
+{{- end }}
+
       containers:
         - name: cinder-volume
 {{ tuple $envAll "cinder_volume" | include "helm-toolkit.snippets.image" | indent 10 }}
 {{ tuple $envAll $envAll.Values.pod.resources.volume | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
-          securityContext:
-            runAsUser: {{ .Values.pod.user.cinder.uid }}
+{{ dict "envAll" $envAll "application" "cinder" "container" "cinder-volume" | include "helm-toolkit.snippets.kubernetes_container_security_context" | indent 10 }}
           command:
             - /tmp/cinder-volume.sh
           volumeMounts:
+            - name: pod-tmp
+              mountPath: /tmp
             - name: cinder-bin
               mountPath: /tmp/cinder-volume.sh
               subPath: cinder-volume.sh
               readOnly: true
+            - name: pod-shared
+              mountPath: /tmp/pod-shared
             - name: cinder-etc
               mountPath: /etc/cinder/cinder.conf
               subPath: cinder.conf
               readOnly: true
+            {{- if .Values.conf.cinder.DEFAULT.log_config_append }}
             - name: cinder-etc
               mountPath: {{ .Values.conf.cinder.DEFAULT.log_config_append }}
               subPath: {{ base .Values.conf.cinder.DEFAULT.log_config_append }}
               readOnly: true
+            {{- end }}
             - name: cinder-etc
               mountPath: /etc/cinder/conf/backends.conf
               subPath: backends.conf
               readOnly: true
-            {{- if include "cinder.utils.is_ceph_volume_configured" $envAll }}
+            {{- if include "cinder.utils.has_ceph_backend" $envAll }}
             - name: etcceph
               mountPath: /etc/ceph
             - name: ceph-etc
@@ -154,19 +196,24 @@ spec:
             {{- end }}
 {{ if $mounts_cinder_volume.volumeMounts }}{{ toYaml $mounts_cinder_volume.volumeMounts | indent 12 }}{{ end }}
       volumes:
+        - name: pod-tmp
+          emptyDir: {}
         - name: cinder-bin
           configMap:
             name: cinder-bin
             defaultMode: 0555
         - name: cinder-etc
-          configMap:
-            name: cinder-etc
-        {{- if include "cinder.utils.is_ceph_volume_configured" $envAll }}
+          secret:
+            secretName: cinder-etc
+            defaultMode: 0444
+        {{- if include "cinder.utils.has_ceph_backend" $envAll }}
         - name: etcceph
+          emptyDir: {}
+        - name: pod-shared
           emptyDir: {}
         - name: ceph-etc
           configMap:
-            name: ceph-etc
+            name: {{ .Values.ceph_client.configmap }}
             defaultMode: 0444
         - name: ceph-keyring
           secret:

@@ -32,16 +32,16 @@ labels:
 
 images:
   tags:
-    bootstrap: docker.io/openstackhelm/heat:newton
-    db_init: docker.io/openstackhelm/heat:newton
-    magnum_db_sync: docker.io/openstackhelm/magnum:newton
-    db_drop: docker.io/openstackhelm/heat:newton
+    bootstrap: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
+    db_init: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
+    magnum_db_sync: docker.io/openstackhelm/magnum:ocata-ubuntu_xenial
+    db_drop: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
     rabbit_init: docker.io/rabbitmq:3.7-management
-    ks_user: docker.io/openstackhelm/heat:newton
-    ks_service: docker.io/openstackhelm/heat:newton
-    ks_endpoints: docker.io/openstackhelm/heat:newton
-    magnum_api: docker.io/openstackhelm/magnum:newton
-    magnum_conductor: docker.io/openstackhelm/magnum:newton
+    ks_user: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
+    ks_service: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
+    ks_endpoints: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
+    magnum_api: docker.io/openstackhelm/magnum:ocata-ubuntu_xenial
+    magnum_conductor: docker.io/openstackhelm/magnum:ocata-ubuntu_xenial
     dep_check: quay.io/stackanetes/kubernetes-entrypoint:v0.3.1
     image_repo_sync: docker.io/docker:17.07.0
   pull_policy: "IfNotPresent"
@@ -151,7 +151,7 @@ conf:
         - default
     logger_root:
       level: WARNING
-      handlers: null
+      handlers: stdout
     logger_magnum:
       level: INFO
       handlers:
@@ -191,8 +191,10 @@ conf:
       formatter: context
     formatter_context:
       class: oslo_log.formatters.ContextFormatter
+      datefmt: "%Y-%m-%d %H:%M:%S"
     formatter_default:
       format: "%(message)s"
+      datefmt: "%Y-%m-%d %H:%M:%S"
 
 network:
   api:
@@ -352,8 +354,8 @@ endpoints:
         password: password
         domain_name: magnum
     hosts:
-      default: keystone-api
-      public: keystone
+      default: keystone
+      internal: keystone-api
     host_fqdn_override:
       default: null
     path:
@@ -449,6 +451,9 @@ endpoints:
       magnum:
         username: magnum
         password: password
+    statefulset:
+      replicas: 2
+      name: rabbitmq-rabbitmq
     hosts:
       default: rabbitmq
     host_fqdn_override:
@@ -486,16 +491,28 @@ pod:
         default: preferredDuringSchedulingIgnoredDuringExecution
       topologyKey:
         default: kubernetes.io/hostname
+      weight:
+        default: 10
   mounts:
     magnum_api:
       init_container: null
       magnum_api:
+        volumeMounts:
+        volumes:
     magnum_conductor:
       init_container: null
       magnum_conductor:
+        volumeMounts:
+        volumes:
     magnum_bootstrap:
       init_container: null
       magnum_bootstrap:
+        volumeMounts:
+        volumes:
+    magnum_db_sync:
+      magnum_db_sync:
+        volumeMounts:
+        volumes:
   replicas:
     api: 1
     conductor: 1
@@ -601,6 +618,29 @@ pod:
           memory: "1024Mi"
           cpu: "2000m"
 
+
+network_policy:
+  magnum:
+    ingress:
+      - from:
+        - podSelector:
+            matchLabels:
+              application: magnum
+        - podSelector:
+            matchLabels:
+              application: horizon
+        - podSelector:
+            matchLabels:
+              application: ingress
+        - podSelector:
+            matchLabels:
+              application: heat
+        ports:
+        - protocol: TCP
+          port: 80
+        - protocol: TCP
+          port: 9511
+
 manifests:
   configmap_bin: true
   configmap_etc: true
@@ -617,6 +657,7 @@ manifests:
   job_ks_user: true
   job_rabbit_init: true
   pdb_api: true
+  network_policy: false
   secret_db: true
   secret_keystone: true
   secret_rabbitmq: true

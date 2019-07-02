@@ -31,6 +31,7 @@ metadata:
 {{ tuple $envAll "mistral" "test" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 4 }}
   annotations:
     "helm.sh/hook": test-success
+    {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" }}
 spec:
   nodeSelector:
     {{ .Values.labels.test.node_selector_key }}: {{ .Values.labels.test.node_selector_value }}
@@ -44,6 +45,8 @@ spec:
       command:
         - /tmp/ks-user.sh
       volumeMounts:
+        - name: pod-tmp
+          mountPath: /tmp
         - name: mistral-bin
           mountPath: /tmp/ks-user.sh
           subPath: ks-user.sh
@@ -75,6 +78,8 @@ spec:
       command:
         - /tmp/rally-test.sh
       volumeMounts:
+        - name: pod-tmp
+          mountPath: /tmp
         - name: mistral-etc
           mountPath: /etc/rally/rally_tests.yaml
           subPath: rally_tests.yaml
@@ -93,9 +98,11 @@ spec:
         {{- end }}
 {{ if $mounts_tests.volumeMounts }}{{ toYaml $mounts_tests.volumeMounts | indent 8 }}{{ end }}
   volumes:
+    - name: pod-tmp
+      emptyDir: {}
     - name: mistral-etc
-      configMap:
-        name: mistral-etc
+      secret:
+        secretName: mistral-etc
         defaultMode: 0444
     - name: mistral-bin
       configMap:

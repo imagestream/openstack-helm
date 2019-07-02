@@ -25,7 +25,7 @@ import os
 import pwd
 import re
 import six
-import subprocess
+import subprocess  #nosec
 import sys
 import time
 
@@ -91,7 +91,7 @@ def read_from_files():
     for key in keys:
         with open(FERNET_DIR + key, 'r') as f:
             data[key] = f.read()
-    if len(keys):
+    if len(list(keys)):
         LOG.debug("Keys read from files: %s", keys)
     else:
         LOG.warn("No keys were read from files.")
@@ -127,7 +127,7 @@ def execute_command(cmd):
     LOG.info("Executing 'keystone-manage %s --keystone-user=%s "
              "--keystone-group=%s' command.",
              cmd, KEYSTONE_USER, KEYSTONE_GROUP)
-    subprocess.call(['keystone-manage', cmd,
+    subprocess.call(['keystone-manage', cmd,  #nosec
                      '--keystone-user=%s' % KEYSTONE_USER,
                      '--keystone-group=%s' % KEYSTONE_GROUP])
 
@@ -154,6 +154,11 @@ def main():
                  'credential' if is_credential else 'fernet', SECRET_NAME,
                  FERNET_DIR)
         write_to_files(secret['data'])
+
+    if args.command == 'credential_setup':
+        if secret.get('data', False):
+            LOG.info('Credential keys already exist, skipping setup...')
+            sys.exit(0)
 
     execute_command(args.command)
 

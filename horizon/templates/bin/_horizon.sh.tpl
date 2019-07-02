@@ -31,12 +31,41 @@ function start () {
   # wsgi/horizon-http needs open files here, including secret_key_store
   chown -R horizon ${SITE_PACKAGES_ROOT}/openstack_dashboard/local/
 
+  {{- if .Values.conf.software.apache2.a2enmod }}
+    {{- range .Values.conf.software.apache2.a2enmod }}
+  a2enmod {{ . }}
+    {{- end }}
+  {{- end }}
+
+  {{- if .Values.conf.software.apache2.a2dismod }}
+    {{- range .Values.conf.software.apache2.a2dismod }}
+  a2dismod {{ . }}
+    {{- end }}
+  {{- end }}
+
   if [ -f /etc/apache2/envvars ]; then
      # Loading Apache2 ENV variables
      source /etc/apache2/envvars
+     # The directory below has to be created due to the fact that
+     # libapache2-mod-wsgi-py3 doesn't create it in contrary by libapache2-mod-wsgi
+     if [ ! -d ${APACHE_RUN_DIR} ]; then
+        mkdir -p ${APACHE_RUN_DIR}
+     fi
   fi
   rm -rf /var/run/apache2/*
   APACHE_DIR="apache2"
+
+  # Add extra panels if available
+  {{- range .Values.conf.horizon.extra_panels }}
+  PANEL_DIR="${SITE_PACKAGES_ROOT}/{{ . }}/enabled"
+  if [ -d ${PANEL_DIR} ];then
+    for panel in `ls -1 ${PANEL_DIR}/_[1-9]*.py`
+    do
+      ln -s ${panel} ${SITE_PACKAGES_ROOT}/openstack_dashboard/local/enabled/$(basename ${panel})
+    done
+  fi
+  unset PANEL_DIR
+  {{- end }}
 
   # If the image has support for it, compile the translations
   if type -p gettext >/dev/null 2>/dev/null; then
@@ -48,11 +77,11 @@ function start () {
   /tmp/manage.py compress --force
   rm -rf /tmp/_tmp_.secret_key_store.lock /tmp/.secret_key_store
 
-  exec apache2 -DFOREGROUND
+  exec {{ .Values.conf.software.apache2.binary }} {{ .Values.conf.software.apache2.start_parameters }}
 }
 
 function stop () {
-  apachectl -k graceful-stop
+  {{ .Values.conf.software.apache2.binary }} -k graceful-stop
 }
 
 $COMMAND

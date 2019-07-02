@@ -27,6 +27,8 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: senlin-api
+  annotations:
+    {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" }}
   labels:
 {{ tuple $envAll "senlin" "api" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 4 }}
 spec:
@@ -40,6 +42,7 @@ spec:
       labels:
 {{ tuple $envAll "senlin" "api" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
       annotations:
+{{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
     spec:
@@ -77,6 +80,8 @@ spec:
             initialDelaySeconds: 15
             periodSeconds: 10
           volumeMounts:
+            - name: pod-tmp
+              mountPath: /tmp
             - name: senlin-bin
               mountPath: /tmp/senlin-api.sh
               subPath: senlin-api.sh
@@ -89,10 +94,12 @@ spec:
               mountPath: /etc/senlin/senlin.conf
               subPath: senlin.conf
               readOnly: true
+            {{- if .Values.conf.senlin.DEFAULT.log_config_append }}
             - name: senlin-etc
               mountPath: {{ .Values.conf.senlin.DEFAULT.log_config_append }}
               subPath: {{ base .Values.conf.senlin.DEFAULT.log_config_append }}
               readOnly: true
+            {{- end }}
             - name: senlin-etc
               mountPath: /etc/senlin/api-paste.ini
               subPath: api-paste.ini
@@ -103,6 +110,8 @@ spec:
               readOnly: true
 {{ if $mounts_senlin_api.volumeMounts }}{{ toYaml $mounts_senlin_api.volumeMounts | indent 12 }}{{ end }}
       volumes:
+        - name: pod-tmp
+          emptyDir: {}
         - name: pod-etc-senlin
           emptyDir: {}
         - name: pod-var-cache-senlin
@@ -112,8 +121,8 @@ spec:
             name: senlin-bin
             defaultMode: 0555
         - name: senlin-etc
-          configMap:
-            name: senlin-etc
+          secret:
+            secretName: senlin-etc
             defaultMode: 0444
 {{ if $mounts_senlin_api.volumes }}{{ toYaml $mounts_senlin_api.volumes | indent 8 }}{{ end }}
 {{- end }}

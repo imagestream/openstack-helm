@@ -22,3 +22,11 @@ neutron-db-manage \
   --config-file /etc/neutron/neutron.conf \
   --config-file /etc/neutron/plugins/ml2/ml2_conf.ini \
   upgrade head
+
+{{- if .Values.conf.plugins.taas.taas.enabled }}
+neutron-db-manage \
+  --config-file /etc/neutron/neutron.conf \
+  --config-file /etc/neutron/plugins/ml2/ml2_conf.ini \
+  --subproject tap-as-a-service \
+  upgrade head
+{{- end }}

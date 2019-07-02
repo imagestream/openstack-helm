@@ -47,12 +47,6 @@ limitations under the License.
 {{- if empty .Values.conf.heat.trustee.region_name -}}
 {{- $_ := set .Values.conf.heat.trustee "region_name" .Values.endpoints.identity.auth.heat_trustee.region_name -}}
 {{- end -}}
-{{- if empty .Values.conf.heat.trustee.project_name -}}
-{{- $_ := set .Values.conf.heat.trustee "project_name" .Values.endpoints.identity.auth.heat_trustee.project_name -}}
-{{- end -}}
-{{- if empty .Values.conf.heat.trustee.project_domain_name -}}
-{{- $_ := set .Values.conf.heat.trustee "project_domain_name" .Values.endpoints.identity.auth.heat_trustee.project_domain_name -}}
-{{- end -}}
 {{- if empty .Values.conf.heat.trustee.user_domain_name -}}
 {{- $_ := set .Values.conf.heat.trustee "user_domain_name" .Values.endpoints.identity.auth.heat_trustee.user_domain_name -}}
 {{- end -}}
@@ -85,7 +79,7 @@ limitations under the License.
 {{- end -}}
 
 {{- if empty .Values.conf.heat.DEFAULT.transport_url -}}
-{{- $_ := tuple "oslo_messaging" "internal" "heat" "amqp" . | include "helm-toolkit.endpoints.authenticated_endpoint_uri_lookup" | set .Values.conf.heat.DEFAULT "transport_url" -}}
+{{- $_ := tuple "oslo_messaging" "internal" "heat" "amqp" . | include "helm-toolkit.endpoints.authenticated_transport_endpoint_uri_lookup" | set .Values.conf.heat.DEFAULT "transport_url" -}}
 {{- end -}}
 
 {{- if empty .Values.conf.heat.DEFAULT.heat_metadata_server_url -}}
@@ -134,22 +128,18 @@ limitations under the License.
 {{- end -}}
 ---
 apiVersion: v1
-kind: ConfigMap
+kind: Secret
 metadata:
   name: heat-etc
+type: Opaque
 data:
-  rally_tests.yaml: |
-{{ toYaml .Values.conf.rally_tests.tests | indent 4 }}
-  heat.conf: |
-{{ include "helm-toolkit.utils.to_oslo_conf" .Values.conf.heat | indent 4 }}
-  logging.conf: |
-{{ include "helm-toolkit.utils.to_oslo_conf" .Values.conf.logging | indent 4 }}
-  api-paste.ini: |
-{{ include "helm-toolkit.utils.to_ini" .Values.conf.paste | indent 4 }}
-  policy.json: |
-{{  toJson .Values.conf.policy | indent 4 }}
+  rally_tests.yaml: {{ toYaml .Values.conf.rally_tests.tests | b64enc }}
+  heat.conf: {{ include "helm-toolkit.utils.to_oslo_conf" .Values.conf.heat | b64enc }}
+  logging.conf: {{ include "helm-toolkit.utils.to_oslo_conf" .Values.conf.logging | b64enc }}
+  api-paste.ini: {{ include "helm-toolkit.utils.to_ini" .Values.conf.paste | b64enc }}
+  policy.json: {{ toJson .Values.conf.policy | b64enc }}
+  api_audit_map.conf: {{ include "helm-toolkit.utils.to_oslo_conf" .Values.conf.api_audit_map | b64enc }}
 {{- range $key, $value := $envAll.Values.conf.rally_tests.templates }}
-  {{ printf "test_template_%d" $key }}: |
-{{ $value.template | indent 4 }}
+  {{ printf "test_template_%d" $key }}: {{ $value.template | b64enc }}
 {{- end }}
 {{- end }}

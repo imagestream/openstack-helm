@@ -29,6 +29,8 @@ apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: neutron-lb-agent
+  annotations:
+    {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" }}
   labels:
 {{ tuple $envAll "neutron" "neutron-lb-agent" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 4 }}
 spec:
@@ -41,9 +43,11 @@ spec:
       labels:
 {{ tuple $envAll "neutron" "neutron-lb-agent" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
       annotations:
+{{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
     spec:
+{{ dict "envAll" $envAll "application" "neutron" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 6 }}
       serviceAccountName: {{ $serviceAccountName }}
       nodeSelector:
         {{ .Values.labels.lb.node_selector_key }}: {{ .Values.labels.lb.node_selector_value }}
@@ -58,11 +62,7 @@ spec:
 {{ tuple $envAll "pod_dependency" $mounts_neutron_lb_agent_init | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
         - name: neutron-lb-agent-kernel-modules
 {{ tuple $envAll "neutron_linuxbridge_agent" | include "helm-toolkit.snippets.image" | indent 10 }}
-          securityContext:
-            capabilities:
-              add:
-                - SYS_MODULE
-            runAsUser: 0
+{{ dict "envAll" $envAll "application" "neutron" "container" "neutron_lb_agent_kernel_modules" | include "helm-toolkit.snippets.kubernetes_container_security_context" | indent 10 }}
           command:
             - /tmp/neutron-linuxbridge-agent-init-modules.sh
           volumeMounts:
@@ -76,12 +76,12 @@ spec:
         - name: neutron-lb-agent-init
 {{ tuple $envAll "neutron_linuxbridge_agent" | include "helm-toolkit.snippets.image" | indent 10 }}
 {{ tuple $envAll $envAll.Values.pod.resources.agent.lb | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
-          securityContext:
-            privileged: true
-            runAsUser: 0
+{{ dict "envAll" $envAll "application" "neutron" "container" "neutron_lb_agent_init" | include "helm-toolkit.snippets.kubernetes_container_security_context" | indent 10 }}
           command:
             - /tmp/neutron-linuxbridge-agent-init.sh
           volumeMounts:
+            - name: pod-tmp
+              mountPath: /tmp
             - name: neutron-bin
               mountPath: /tmp/neutron-linuxbridge-agent-init.sh
               subPath: neutron-linuxbridge-agent-init.sh
@@ -108,6 +108,10 @@ spec:
               subPath: neutron_sudoers
               readOnly: true
             - name: neutron-etc
+              mountPath: /tmp/auto_bridge_add
+              subPath: auto_bridge_add
+              readOnly: true
+            - name: neutron-etc
               mountPath: /etc/neutron/rootwrap.conf
               subPath: rootwrap.conf
               readOnly: true
@@ -128,9 +132,7 @@ spec:
         - name: neutron-lb-agent
 {{ tuple $envAll "neutron_linuxbridge_agent" | include "helm-toolkit.snippets.image" | indent 10 }}
 {{ tuple $envAll $envAll.Values.pod.resources.agent.lb | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
-          securityContext:
-            runAsUser: {{ .Values.pod.user.neutron.uid }}
-            privileged: true
+{{ dict "envAll" $envAll "application" "neutron" "container" "neutron_lb_agent" | include "helm-toolkit.snippets.kubernetes_container_security_context" | indent 10 }}
           command:
             - /tmp/neutron-linuxbridge-agent.sh
           readinessProbe:
@@ -140,6 +142,8 @@ spec:
                 - -c
                 - 'brctl show'
           volumeMounts:
+            - name: pod-tmp
+              mountPath: /tmp
             - name: neutron-bin
               mountPath: /tmp/neutron-linuxbridge-agent.sh
               subPath: neutron-linuxbridge-agent.sh
@@ -150,10 +154,12 @@ spec:
               mountPath: /etc/neutron/neutron.conf
               subPath: neutron.conf
               readOnly: true
+            {{- if .Values.conf.neutron.DEFAULT.log_config_append }}
             - name: neutron-etc
               mountPath: {{ .Values.conf.neutron.DEFAULT.log_config_append }}
               subPath: {{ base .Values.conf.neutron.DEFAULT.log_config_append }}
               readOnly: true
+            {{- end }}
             - name: neutron-etc
               mountPath: /etc/neutron/plugins/ml2/ml2_conf.ini
               subPath: ml2_conf.ini
@@ -187,6 +193,8 @@ spec:
               mountPath: /run
 {{ if $mounts_neutron_lb_agent.volumeMounts }}{{ toYaml $mounts_neutron_lb_agent.volumeMounts | indent 12 }}{{ end }}
       volumes:
+        - name: pod-tmp
+          emptyDir: {}
         - name: pod-shared
           emptyDir: {}
         - name: neutron-bin
@@ -194,8 +202,8 @@ spec:
             name: neutron-bin
             defaultMode: 0555
         - name: neutron-etc
-          configMap:
-            name: {{ $configMapName }}
+          secret:
+            secretName: {{ $configMapName }}
             defaultMode: 0444
         - name: run
           hostPath:

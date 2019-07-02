@@ -27,6 +27,8 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: ceilometer-collector
+  annotations:
+    {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" }}
   labels:
 {{ tuple $envAll "ceilometer" "collector" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 4 }}
 spec:
@@ -40,6 +42,7 @@ spec:
       labels:
 {{ tuple $envAll "ceilometer" "collector" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
       annotations:
+{{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
     spec:
@@ -57,6 +60,8 @@ spec:
           command:
             - /tmp/ceilometer-collector.sh
           volumeMounts:
+            - name: pod-tmp
+              mountPath: /tmp
             - name: pod-etc-ceilometer
               mountPath: /etc/ceilometer
             - name: ceilometer-etc
@@ -93,11 +98,13 @@ spec:
               readOnly: true
 {{ if $mounts_ceilometer_collector.volumeMounts }}{{ toYaml $mounts_ceilometer_collector.volumeMounts | indent 12 }}{{ end }}
       volumes:
+        - name: pod-tmp
+          emptyDir: {}
         - name: pod-etc-ceilometer
           emptyDir: {}
         - name: ceilometer-etc
-          configMap:
-            name: ceilometer-etc
+          secret:
+            secretName: ceilometer-etc
             defaultMode: 0444
         - name: ceilometer-bin
           configMap:

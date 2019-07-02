@@ -29,6 +29,8 @@ apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: neutron-l3-agent
+  annotations:
+    {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" }}
   labels:
 {{ tuple $envAll "neutron" "l3-agent" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 4 }}
 spec:
@@ -41,9 +43,11 @@ spec:
       labels:
 {{ tuple $envAll "neutron" "l3-agent" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
       annotations:
+{{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
     spec:
+{{ dict "envAll" $envAll "application" "neutron" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 6 }}
       serviceAccountName: {{ $serviceAccountName }}
       nodeSelector:
         {{ .Values.labels.agent.l3.node_selector_key }}: {{ .Values.labels.agent.l3.node_selector_value }}
@@ -60,24 +64,61 @@ spec:
         - name: neutron-l3-agent
 {{ tuple $envAll "neutron_l3" | include "helm-toolkit.snippets.image" | indent 10 }}
 {{ tuple $envAll $envAll.Values.pod.resources.agent.l3 | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
-          securityContext:
-            runAsUser: {{ .Values.pod.user.neutron.uid }}
-            privileged: true
+{{ dict "envAll" $envAll "application" "neutron" "container" "neutron_l3_agent" | include "helm-toolkit.snippets.kubernetes_container_security_context" | indent 10 }}
+          readinessProbe:
+            exec:
+              command:
+                - python
+                - /tmp/health-probe.py
+                - --config-file
+                - /etc/neutron/neutron.conf
+                - --config-file
+                - /etc/neutron/l3_agent.ini
+                - --agent-queue-name
+                - l3_agent
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 65
+          livenessProbe:
+            exec:
+              command:
+                - python
+                - /tmp/health-probe.py
+                - --config-file
+                - /etc/neutron/neutron.conf
+                - --config-file
+                - /etc/neutron/l3_agent.ini
+                - --agent-queue-name
+                - l3_agent
+                - --liveness-probe
+            initialDelaySeconds: 120
+            periodSeconds: 90
+            timeoutSeconds: 70
           command:
             - /tmp/neutron-l3-agent.sh
           volumeMounts:
+            - name: pod-tmp
+              mountPath: /tmp
+            - name: pod-var-neutron
+              mountPath: /var/lib/neutron
             - name: neutron-bin
               mountPath: /tmp/neutron-l3-agent.sh
               subPath: neutron-l3-agent.sh
+              readOnly: true
+            - name: neutron-bin
+              mountPath: /tmp/health-probe.py
+              subPath: health-probe.py
               readOnly: true
             - name: neutron-etc
               mountPath: /etc/neutron/neutron.conf
               subPath: neutron.conf
               readOnly: true
+            {{- if .Values.conf.neutron.DEFAULT.log_config_append }}
             - name: neutron-etc
               mountPath: {{ .Values.conf.neutron.DEFAULT.log_config_append }}
               subPath: {{ base .Values.conf.neutron.DEFAULT.log_config_append }}
               readOnly: true
+            {{- end }}
             - name: neutron-etc
               mountPath: /etc/neutron/plugins/ml2/ml2_conf.ini
               subPath: ml2_conf.ini
@@ -129,13 +170,17 @@ spec:
             {{- end }}
 {{ if $mounts_neutron_l3_agent.volumeMounts }}{{ toYaml $mounts_neutron_l3_agent.volumeMounts | indent 12 }}{{ end }}
       volumes:
+        - name: pod-tmp
+          emptyDir: {}
+        - name: pod-var-neutron
+          emptyDir: {}
         - name: neutron-bin
           configMap:
             name: neutron-bin
             defaultMode: 0555
         - name: neutron-etc
-          configMap:
-            name: {{ $configMapName }}
+          secret:
+            secretName: {{ $configMapName }}
             defaultMode: 0444
         - name: libmodules
           hostPath:

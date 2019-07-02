@@ -35,18 +35,18 @@ release_group: null
 
 images:
   tags:
-    scripted_test: docker.io/openstackhelm/heat:newton
-    bootstrap: docker.io/openstackhelm/heat:newton
-    db_init: docker.io/openstackhelm/heat:newton
-    senlin_db_sync: docker.io/openstackhelm/senlin:newton
-    db_drop: docker.io/openstackhelm/heat:newton
+    scripted_test: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
+    bootstrap: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
+    db_init: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
+    senlin_db_sync: docker.io/openstackhelm/senlin:ocata-ubuntu_xenial
+    db_drop: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
     rabbit_init: docker.io/rabbitmq:3.7-management
-    ks_user: docker.io/openstackhelm/heat:newton
-    ks_service: docker.io/openstackhelm/heat:newton
-    ks_endpoints: docker.io/openstackhelm/heat:newton
-    senlin_api: docker.io/openstackhelm/senlin:newton
-    senlin_engine: docker.io/openstackhelm/senlin:newton
-    senlin_engine_cleaner: docker.io/openstackhelm/senlin:newton
+    ks_user: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
+    ks_service: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
+    ks_endpoints: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
+    senlin_api: docker.io/openstackhelm/senlin:ocata-ubuntu_xenial
+    senlin_engine: docker.io/openstackhelm/senlin:ocata-ubuntu_xenial
+    senlin_engine_cleaner: docker.io/openstackhelm/senlin:ocata-ubuntu_xenial
     dep_check: quay.io/stackanetes/kubernetes-entrypoint:v0.3.1
     image_repo_sync: docker.io/docker:17.07.0
   pull_policy: "IfNotPresent"
@@ -196,7 +196,7 @@ conf:
         - default
     logger_root:
       level: WARNING
-      handlers: null
+      handlers: stdout
     logger_senlin:
       level: INFO
       handlers:
@@ -236,8 +236,10 @@ conf:
       formatter: context
     formatter_context:
       class: oslo_log.formatters.ContextFormatter
+      datefmt: "%Y-%m-%d %H:%M:%S"
     formatter_default:
       format: "%(message)s"
+      datefmt: "%Y-%m-%d %H:%M:%S"
 
 network:
   api:
@@ -395,14 +397,14 @@ endpoints:
       test:
         role: admin
         region_name: RegionOne
-        username: test
+        username: senlin-test
         password: password
         project_name: test
         user_domain_name: service
         project_domain_name: service
     hosts:
-      default: keystone-api
-      public: keystone
+      default: keystone
+      internal: keystone-api
     host_fqdn_override:
       default: null
     path:
@@ -468,6 +470,9 @@ endpoints:
       senlin:
         username: senlin
         password: password
+    statefulset:
+      replicas: 2
+      name: rabbitmq-rabbitmq
     hosts:
       default: rabbitmq
     host_fqdn_override:
@@ -505,22 +510,38 @@ pod:
         default: preferredDuringSchedulingIgnoredDuringExecution
       topologyKey:
         default: kubernetes.io/hostname
+      weight:
+        default: 10
   mounts:
     senlin_api:
       init_container: null
       senlin_api:
+        volumeMounts:
+        volumes:
     senlin_engine:
       init_container: null
       senlin_engine:
+        volumeMounts:
+        volumes:
     senlin_bootstrap:
       init_container: null
       senlin_bootstrap:
+        volumeMounts:
+        volumes:
     senlin_engine_cleaner:
       init_container: null
       senlin_engine_cleaner:
+        volumeMounts:
+        volumes:
     senlin_tests:
       init_container: null
       senlin_tests:
+        volumeMounts:
+        volumes:
+    senlin_db_sync:
+      senlin_db_sync:
+        volumeMounts:
+        volumes:
   replicas:
     api: 1
     engine: 1
@@ -620,7 +641,7 @@ pod:
           cpu: "2000m"
       engine_cleaner:
         requests:
-          memory: "124Mi"
+          memory: "128Mi"
           cpu: "100m"
         limits:
           memory: "1024Mi"
@@ -632,6 +653,11 @@ pod:
         limits:
           memory: "1024Mi"
           cpu: "2000m"
+
+network_policy:
+  senlin:
+    ingress:
+      - {}
 
 manifests:
   configmap_bin: true
@@ -651,6 +677,7 @@ manifests:
   job_rabbit_init: true
   pdb_api: true
   pod_test: true
+  network_policy: false
   secret_db: true
   secret_keystone: true
   secret_rabbitmq: true

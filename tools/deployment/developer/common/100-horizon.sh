@@ -33,3 +33,5 @@ helm upgrade --install horizon ./horizon \
 
 #NOTE: Validate Deployment info
 helm status horizon
+
+helm test horizon

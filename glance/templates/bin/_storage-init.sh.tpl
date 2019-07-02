@@ -42,23 +42,28 @@ elif [ "x$STORAGE_BACKEND" == "xrbd" ]; then
   ceph -s
   function ensure_pool () {
     ceph osd pool stats "$1" || ceph osd pool create "$1" "$2"
-    local test_luminous
-    test_luminous=$(ceph tell osd.* version | egrep -c "12.2|luminous" | xargs echo)
-    if [[ ${test_luminous} -gt 0 ]]; then
+    local test_version
+    test_version=$(ceph tell osd.* version | egrep -c "mimic|luminous" | xargs echo)
+    if [[ ${test_version} -gt 0 ]]; then
       ceph osd pool application enable "$1" "$3"
     fi
+    ceph osd pool set "$1" size "${RBD_POOL_REPLICATION}"
+    ceph osd pool set "$1" crush_rule "${RBD_POOL_CRUSH_RULE}"
   }
-  ensure_pool "${RBD_POOL_NAME}" "${RBD_POOL_CHUNK_SIZE}" "glance-image"
+  ensure_pool "${RBD_POOL_NAME}" "${RBD_POOL_CHUNK_SIZE}" "${RBD_POOL_APP_NAME}"
 
   if USERINFO=$(ceph auth get "client.${RBD_POOL_USER}"); then
-    KEYSTR=$(echo "${USERINFO}" | sed 's/.*\( key = .*\) caps mon.*/\1/')
-    echo "${KEYSTR}" > "${KEYRING}"
+    echo "Cephx user client.${RBD_POOL_USER} already exist."
+    echo "Update its cephx caps"
+    ceph auth caps client.${RBD_POOL_USER} \
+      mon "profile rbd" \
+      osd "profile rbd pool=${RBD_POOL_NAME}"
+    ceph auth get client.${RBD_POOL_USER} -o ${KEYRING}
   else
-    #NOTE(Portdirect): Determine proper privs to assign keyring
+    #NOTE(JCL): Restrict Glance user to only what is needed. MON Read only and RBD access to the Glance Pool
     ceph auth get-or-create "client.${RBD_POOL_USER}" \
-      mon "allow *" \
-      osd "allow *" \
-      mgr "allow *" \
+      mon "profile rbd" \
+      osd "profile rbd pool=${RBD_POOL_NAME}" \
       -o "${KEYRING}"
   fi
 

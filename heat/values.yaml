@@ -41,20 +41,21 @@ labels:
 
 images:
   tags:
-    test: docker.io/kolla/ubuntu-source-rally:4.0.0
-    bootstrap: docker.io/openstackhelm/heat:newton
-    db_init: docker.io/openstackhelm/heat:newton
-    heat_db_sync: docker.io/openstackhelm/heat:newton
-    db_drop: docker.io/openstackhelm/heat:newton
+    test: docker.io/xrally/xrally-openstack:1.3.0
+    bootstrap: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
+    db_init: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
+    heat_db_sync: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
+    db_drop: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
     rabbit_init: docker.io/rabbitmq:3.7-management
-    ks_user: docker.io/openstackhelm/heat:newton
-    ks_service: docker.io/openstackhelm/heat:newton
-    ks_endpoints: docker.io/openstackhelm/heat:newton
-    heat_api: docker.io/openstackhelm/heat:newton
-    heat_cfn: docker.io/openstackhelm/heat:newton
-    heat_cloudwatch: docker.io/openstackhelm/heat:newton
-    heat_engine: docker.io/openstackhelm/heat:newton
-    heat_engine_cleaner: docker.io/openstackhelm/heat:newton
+    ks_user: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
+    ks_service: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
+    ks_endpoints: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
+    heat_api: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
+    heat_cfn: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
+    heat_cloudwatch: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
+    heat_engine: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
+    heat_engine_cleaner: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
+    heat_purge_deleted: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
     dep_check: quay.io/stackanetes/kubernetes-entrypoint:v0.3.1
     image_repo_sync: docker.io/docker:17.07.0
   pull_policy: "IfNotPresent"
@@ -67,6 +68,14 @@ images:
 jobs:
   engine_cleaner:
     cron: "*/5 * * * *"
+    starting_deadline: 600
+    history:
+      success: 3
+      failed: 1
+
+  purge_deleted:
+    cron: "20 */24 * * *"
+    purge_age: 60
     history:
       success: 3
       failed: 1
@@ -75,16 +84,6 @@ conf:
   rally_tests:
     run_tempest: false
     tests:
-      HeatStacks.create_and_delete_stack:
-        - args:
-            template_path: /tmp/rally-jobs/default.yaml
-          runner:
-            concurrency: 1
-            times: 1
-            type: constant
-          sla:
-            failure_rate:
-              max: 0
       HeatStacks.create_update_delete_stack:
         - args:
             template_path: /tmp/rally-jobs/random_strings.yaml
@@ -284,17 +283,17 @@ conf:
                 length: 40
   paste:
     pipeline:heat-api:
-      pipeline: cors request_id faultwrap http_proxy_to_wsgi versionnegotiation osprofiler authurl authtoken context apiv1app
+      pipeline: cors request_id faultwrap http_proxy_to_wsgi versionnegotiation osprofiler authurl authtoken audit context apiv1app
     pipeline:heat-api-standalone:
       pipeline: cors request_id faultwrap http_proxy_to_wsgi versionnegotiation authurl authpassword context apiv1app
     pipeline:heat-api-custombackend:
       pipeline: cors request_id faultwrap versionnegotiation context custombackendauth apiv1app
     pipeline:heat-api-cfn:
-      pipeline: cors http_proxy_to_wsgi cfnversionnegotiation osprofiler ec2authtoken authtoken context apicfnv1app
+      pipeline: cors http_proxy_to_wsgi cfnversionnegotiation osprofiler ec2authtoken authtoken audit context apicfnv1app
     pipeline:heat-api-cfn-standalone:
       pipeline: cors http_proxy_to_wsgi cfnversionnegotiation ec2authtoken context apicfnv1app
     pipeline:heat-api-cloudwatch:
-      pipeline: cors versionnegotiation osprofiler ec2authtoken authtoken context apicwapp
+      pipeline: cors versionnegotiation osprofiler ec2authtoken authtoken audit context apicwapp
     pipeline:heat-api-cloudwatch-standalone:
       pipeline: cors versionnegotiation ec2authtoken context apicwapp
     app:apiv1app:
@@ -335,6 +334,9 @@ conf:
       paste.filter_factory: heat.common.auth_password:filter_factory
     filter:custombackendauth:
       paste.filter_factory: heat.common.custom_backend_auth:filter_factory
+    filter:audit:
+      paste.filter_factory: keystonemiddleware.audit:filter_factory
+      audit_map_file: /etc/heat/api_audit_map.conf
     filter:request_id:
       paste.filter_factory: oslo_middleware.request_id:RequestId.factory
     filter:osprofiler:
@@ -462,10 +464,43 @@ conf:
       api_paste_config: /etc/heat/api-paste.ini
     clients:
       endpoint_type: internalURL
+    clients_heat:
+      endpoint_type: publicURL
     clients_keystone:
       endpoint_type: internalURL
     oslo_messaging_notifications:
       driver: messagingv2
+    oslo_middleware:
+      enable_proxy_headers_parsing: true
+    oslo_messaging_rabbit:
+      rabbit_ha_queues: True
+  api_audit_map:
+    DEFAULT:
+      target_endpoint_type: None
+    path_keywords:
+      stacks: stack
+      resources: resource
+      preview: None
+      detail: None
+      abandon: None
+      snapshots: snapshot
+      restore: None
+      outputs: output
+      metadata: server
+      signal: None
+      events: event
+      template: None
+      template_versions: template_version
+      functions: None
+      validate: None
+      resource_types: resource_type
+      build_info: None
+      actions: None
+      software_configs: software_config
+      software_deployments: software_deployment
+      services: None
+    service_endpoints:
+      orchestration:service/orchestration
   logging:
     loggers:
       keys:
@@ -482,7 +517,7 @@ conf:
         - default
     logger_root:
       level: WARNING
-      handlers: null
+      handlers: stdout
     logger_heat:
       level: INFO
       handlers:
@@ -522,8 +557,10 @@ conf:
       formatter: context
     formatter_context:
       class: oslo_log.formatters.ContextFormatter
+      datefmt: "%Y-%m-%d %H:%M:%S"
     formatter_default:
       format: "%(message)s"
+      datefmt: "%Y-%m-%d %H:%M:%S"
 
   rabbitmq:
     #NOTE(rk760n): adding rmq policy to mirror messages from notification queues and set expiration time for the ones
@@ -538,7 +575,7 @@ conf:
           message-ttl: 70000
         priority: 0
         apply-to: all
-        pattern: '(notifications)\.'
+        pattern: '^(?!amq\.).*'
 
 network:
   api:
@@ -580,13 +617,10 @@ bootstrap:
   enabled: true
   ks_user: admin
   script: |
-    #NOTE(portdirect): required for all users who operate heat stacks
-    openstack role create --or-show heat_stack_owner
-
     #NOTE(portdirect): The Orchestration service automatically assigns the
     # 'heat_stack_user' role to users that it creates during stack deployment.
     # By default, this role restricts API operations. To avoid conflicts, do
-    # not add this role to users with the heat_stack_owner role.
+    # not add this role to actual users.
     openstack role create --or-show heat_stack_user
 
 dependencies:
@@ -687,6 +721,20 @@ dependencies:
           service: oslo_messaging
         - endpoint: internal
           service: identity
+    purge_deleted:
+      jobs:
+        - heat-db-sync
+        - heat-ks-user
+        - heat-trustee-ks-user
+        - heat-domain-ks-user
+        - heat-ks-endpoints
+      services:
+        - endpoint: internal
+          service: oslo_db
+        - endpoint: internal
+          service: oslo_messaging
+        - endpoint: internal
+          service: identity
     ks_endpoints:
       jobs:
         - heat-ks-service
@@ -774,9 +822,7 @@ endpoints:
         user_domain_name: default
         project_domain_name: default
       heat:
-        role:
-          - admin
-          - heat_stack_owner
+        role: admin
         region_name: RegionOne
         username: heat
         password: password
@@ -800,14 +846,14 @@ endpoints:
       test:
         role: admin
         region_name: RegionOne
-        username: test
+        username: heat-test
         password: password
         project_name: test
         user_domain_name: service
         project_domain_name: service
     hosts:
-      default: keystone-api
-      public: keystone
+      default: keystone
+      internal: keystone-api
     host_fqdn_override:
       default: null
     path:
@@ -919,6 +965,9 @@ endpoints:
       heat:
         username: heat
         password: password
+    statefulset:
+      replicas: 2
+      name: rabbitmq-rabbitmq
     hosts:
       default: rabbitmq
     host_fqdn_override:
@@ -945,42 +994,98 @@ endpoints:
         default: 24224
       metrics:
         default: 24220
+  #NOTE(tp6510): these endpoints allow for things like DNS lookups and apiserver access.
+  # They are using to enable the Egress K8s network policy.
+  k8s:
+    port:
+      api:
+        default: 6443
+        internal: 5000
+      http:
+        default: 80
+  default:
+    namespace: default
+  kube_system:
+    namespace: kube-system
+  kube_public:
+    namespace: kube-public
 
 pod:
-  user:
+  security_context:
     heat:
-      uid: 42424
+      pod:
+        runAsUser: 42424
+      container:
+        heat_api:
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
+        heat_cfn:
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
+        heat_cloudwatch:
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
+        heat_engine:
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
   affinity:
     anti:
       type:
         default: preferredDuringSchedulingIgnoredDuringExecution
       topologyKey:
         default: kubernetes.io/hostname
+      weight:
+        default: 10
   mounts:
     heat_api:
       init_container: null
       heat_api:
+        volumeMounts:
+        volumes:
     heat_cfn:
       init_container: null
       heat_cfn:
+        volumeMounts:
+        volumes:
     heat_cloudwatch:
       init_container: null
       heat_cloudwatch:
+        volumeMounts:
+        volumes:
     heat_engine:
       init_container: null
       heat_engine:
+        volumeMounts:
+        volumes:
     heat_bootstrap:
       init_container: null
       heat_bootstrap:
+        volumeMounts:
+        volumes:
     heat_trusts:
       init_container: null
       heat_trusts:
+        volumeMounts:
+        volumes:
     heat_engine_cleaner:
       init_container: null
       heat_engine_cleaner:
+        volumeMounts:
+        volumes:
+    heat_purge_deleted:
+      init_container: null
+      heat_purge_deleted:
+        volumeMounts:
+        volumes:
     heat_tests:
       init_container: null
       heat_tests:
+        volumeMounts:
+        volumes:
+    heat_db_sync:
+      heat_db_sync:
+        volumeMounts:
+        volumes:
   replicas:
     api: 1
     cfn: 1
@@ -1106,12 +1211,19 @@ pod:
           cpu: "2000m"
       trusts:
         requests:
-          memory: "124Mi"
+          memory: "128Mi"
           cpu: "100m"
         limits:
           memory: "1024Mi"
           cpu: "2000m"
       engine_cleaner:
+        requests:
+          memory: "128Mi"
+          cpu: "100m"
+        limits:
+          memory: "1024Mi"
+          cpu: "2000m"
+      purge_deleted:
         requests:
           memory: "124Mi"
           cpu: "100m"
@@ -1126,10 +1238,48 @@ pod:
           memory: "1024Mi"
           cpu: "2000m"
 
+network_policy:
+  heat:
+    ingress:
+      - from:
+        - podSelector:
+            matchLabels:
+              application: heat
+        - podSelector:
+            matchLabels:
+              application: ingress
+        - podSelector:
+            matchLabels:
+              application: horizon
+        ports:
+        - protocol: TCP
+          port: 80
+        - protocol: TCP
+          port: 8000
+        - protocol: TCP
+          port: 8003
+        - protocol: TCP
+          port: 8004
+    egress:
+      - to:
+        - podSelector:
+            matchLabels:
+              application: neutron
+        - podSelector:
+            matchLabels:
+              application: nova
+        - podSelector:
+            matchLabels:
+              application: glance
+        - podSelector:
+            matchLabels:
+              application: cinder
+
 manifests:
   configmap_bin: true
   configmap_etc: true
   cron_job_engine_cleaner: true
+  cron_job_purge_deleted: true
   deployment_api: true
   deployment_cfn: true
   deployment_cloudwatch: false
@@ -1152,6 +1302,7 @@ manifests:
   pdb_cfn: true
   pdb_cloudwatch: false
   pod_rally_test: true
+  network_policy: false
   secret_db: true
   secret_ingress_tls: true
   secret_keystone: true

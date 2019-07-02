@@ -30,16 +30,16 @@ release_group: null
 
 images:
   tags:
-    bootstrap: docker.io/openstackhelm/heat:newton
+    bootstrap: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
     dep_check: quay.io/stackanetes/kubernetes-entrypoint:v0.3.1
-    scripted_test: docker.io/openstackhelm/heat:newton
-    db_init: docker.io/openstackhelm/heat:newton
-    barbican_db_sync: docker.io/openstackhelm/barbican:newton
-    db_drop: docker.io/openstackhelm/heat:newton
-    ks_user: docker.io/openstackhelm/heat:newton
-    ks_service: docker.io/openstackhelm/heat:newton
-    ks_endpoints: docker.io/openstackhelm/heat:newton
-    barbican_api: docker.io/openstackhelm/barbican:newton
+    scripted_test: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
+    db_init: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
+    barbican_db_sync: docker.io/openstackhelm/barbican:ocata-ubuntu_xenial
+    db_drop: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
+    ks_user: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
+    ks_service: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
+    ks_endpoints: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
+    barbican_api: docker.io/openstackhelm/barbican:ocata-ubuntu_xenial
     rabbit_init: docker.io/rabbitmq:3.7-management
     image_repo_sync: docker.io/docker:17.07.0
   pull_policy: "IfNotPresent"
@@ -50,25 +50,42 @@ images:
       - image_repo_sync
 
 pod:
-  user:
+  security_context:
     barbican:
-      uid: 42424
+      pod:
+        runAsUser: 42424
+      container:
+        barbican_api:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
   affinity:
     anti:
       type:
         default: preferredDuringSchedulingIgnoredDuringExecution
       topologyKey:
         default: kubernetes.io/hostname
+      weight:
+        default: 10
   mounts:
     barbican_api:
       init_container: null
       barbican_api:
+        volumeMounts:
+        volumes:
     barbican_bootstrap:
       init_container: null
       barbican_bootstrap:
+        volumeMounts:
+        volumes:
     barbican_tests:
       init_container: null
       barbican_tests:
+        volumeMounts:
+        volumes:
+    barbican_db_sync:
+      barbican_db_sync:
+        volumeMounts:
+        volumes:
   replicas:
     api: 1
   lifecycle:
@@ -175,7 +192,26 @@ network:
     external_policy_local: false
     node_port:
       enabled: false
-      port: 39486
+      port: 30486
+
+network_policy:
+  barbican:
+    ingress:
+      - from:
+        - podSelector:
+            matchLabels:
+              application: barbican
+        - podSelector:
+            matchLabels:
+              application: ingress
+        - podSelector:
+            matchLabels:
+              application: horizon
+        ports:
+        - protocol: TCP
+          port: 80
+        - protocol: TCP
+          port: 9311
 
 bootstrap:
   enabled: false
@@ -448,7 +484,7 @@ conf:
         - default
     logger_root:
       level: WARNING
-      handlers: null
+      handlers: stdout
     logger_barbican:
       level: INFO
       handlers:
@@ -488,8 +524,10 @@ conf:
       formatter: context
     formatter_context:
       class: oslo_log.formatters.ContextFormatter
+      datefmt: "%Y-%m-%d %H:%M:%S"
     formatter_default:
       format: "%(message)s"
+      datefmt: "%Y-%m-%d %H:%M:%S"
 
 # Names of secrets used by bootstrap and environmental checks
 secrets:
@@ -540,8 +578,8 @@ endpoints:
         user_domain_name: service
         project_domain_name: service
     hosts:
-      default: keystone-api
-      public: keystone
+      default: keystone
+      internal: keystone-api
     host_fqdn_override:
       default: null
     path:
@@ -592,6 +630,9 @@ endpoints:
       barbican:
         username: barbican
         password: password
+    statefulset:
+      replicas: 2
+      name: rabbitmq-rabbitmq
     hosts:
       default: rabbitmq
     host_fqdn_override:
@@ -651,6 +692,7 @@ manifests:
   pdb_api: true
   pod_test: true
   secret_db: true
+  network_policy: false
   secret_ingress_tls: true
   secret_keystone: true
   secret_rabbitmq: true

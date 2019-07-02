@@ -16,9 +16,10 @@
 
 set -xe
 
-source ./tools/deployment/armada/generate-passwords.sh
 : ${OSH_INFRA_PATH:="../openstack-helm-infra"}
 : ${OSH_PATH:="./"}
+
+source ./tools/deployment/armada/generate-osh-passwords.sh
 
 [ -s /tmp/ceph-fs-uuid.txt ] || uuidgen > /tmp/ceph-fs-uuid.txt
 #NOTE(portdirect): to use RBD devices with Ubuntu kernels < 4.5 this
@@ -33,12 +34,19 @@ fi
 
 export CEPH_NETWORK=$(./tools/deployment/multinode/kube-node-subnet.sh)
 export CEPH_FS_ID="$(cat /tmp/ceph-fs-uuid.txt)"
+export RELEASE_UUID=$(uuidgen)
 export TUNNEL_DEVICE=$(ip -4 route list 0/0 | awk '{ print $5; exit }')
 export OSH_INFRA_PATH
 export OSH_PATH
 
-manifests="armada-cluster-ingress armada-ceph armada-lma armada-osh"
-for manifest in $manifests; do
+# NOTE(srwilkers): We add this here due to envsubst expanding the ${tag} placeholder in
+# fluentd's configuration. This ensures the placeholder value gets rendered appropriately
+export tag='${tag}'
+
+for manifest in armada-cluster-ingress armada-ceph; do
   echo "Rendering $manifest manifest"
-  envsubst < ./tools/deployment/armada/multinode/$manifest.yaml > /tmp/$manifest.yaml
+  envsubst < ${OSH_INFRA_PATH}/tools/deployment/armada/manifests/$manifest.yaml > /tmp/$manifest.yaml
 done
+
+echo "Rendering armada-osh manifest"
+envsubst < ./tools/deployment/armada/manifests/armada-osh.yaml > /tmp/armada-osh.yaml

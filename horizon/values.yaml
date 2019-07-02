@@ -19,10 +19,11 @@
 
 images:
   tags:
-    db_init: docker.io/openstackhelm/heat:ocata
-    horizon_db_sync: docker.io/openstackhelm/horizon:ocata
-    db_drop: docker.io/openstackhelm/heat:ocata
-    horizon: docker.io/openstackhelm/horizon:ocata
+    db_init: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
+    horizon_db_sync: docker.io/openstackhelm/horizon:ocata-ubuntu_xenial
+    db_drop: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
+    horizon: docker.io/openstackhelm/horizon:ocata-ubuntu_xenial
+    test: docker.io/openstackhelm/osh-selenium:latest-ubuntu_xenial
     dep_check: quay.io/stackanetes/kubernetes-entrypoint:v0.3.1
     image_repo_sync: docker.io/docker:17.07.0
   pull_policy: "IfNotPresent"
@@ -39,6 +40,9 @@ labels:
     node_selector_key: openstack-control-plane
     node_selector_value: enabled
   job:
+    node_selector_key: openstack-control-plane
+    node_selector_value: enabled
+  test:
     node_selector_key: openstack-control-plane
     node_selector_value: enabled
 
@@ -60,10 +64,22 @@ network:
     port: 31000
 
 conf:
+  software:
+    apache2:
+      binary: apache2
+      start_parameters: -DFOREGROUND
+      site_dir: /etc/apache2/sites-available
+      conf_dir: /etc/apache2/conf-available
+      mods_dir: /etc/apache2/mods-available
+      a2enmod:
+        - rewrite
+      a2dismod:
+        - status
   horizon:
     apache: |
+      <IfVersion < 2.4>
       Listen 0.0.0.0:{{ tuple "dashboard" "internal" "web" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
-
+      </IfVersion>
       LogFormat "%h %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\"" combined
       LogFormat "%{X-Forwarded-For}i %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\"" proxy
 
@@ -77,6 +93,9 @@ conf:
           WSGIProcessGroup horizon-http
           WSGIScriptAlias / /var/www/cgi-bin/horizon/django.wsgi
           WSGIPassAuthorization On
+          RewriteEngine on
+          RewriteCond %{REQUEST_METHOD} !^(POST|PUT|GET|DELETE)
+          RewriteRule .* - [F]
 
           <Location "/">
               Require all granted
@@ -84,7 +103,7 @@ conf:
 
           Alias /static /var/www/html/horizon
           <Location "/static">
-              SetHandler None
+              SetHandler static
           </Location>
 
           <IfVersion >= 2.4>
@@ -97,6 +116,72 @@ conf:
           CustomLog /dev/stdout combined env=!forwarded
           CustomLog /dev/stdout proxy env=forwarded
       </Virtualhost>
+    security: |
+      #
+      # Disable access to the entire file system except for the directories that
+      # are explicitly allowed later.
+      #
+      # This currently breaks the configurations that come with some web application
+      # Debian packages.
+      #
+      #<Directory />
+      #   AllowOverride None
+      #   Require all denied
+      #</Directory>
+
+      # Changing the following options will not really affect the security of the
+      # server, but might make attacks slightly more difficult in some cases.
+
+      #
+      # ServerTokens
+      # This directive configures what you return as the Server HTTP response
+      # Header. The default is 'Full' which sends information about the OS-Type
+      # and compiled in modules.
+      # Set to one of:  Full | OS | Minimal | Minor | Major | Prod
+      # where Full conveys the most information, and Prod the least.
+      ServerTokens Prod
+
+      #
+      # Optionally add a line containing the server version and virtual host
+      # name to server-generated pages (internal error documents, FTP directory
+      # listings, mod_status and mod_info output etc., but not CGI generated
+      # documents or custom error documents).
+      # Set to "EMail" to also include a mailto: link to the ServerAdmin.
+      # Set to one of:  On | Off | EMail
+      ServerSignature Off
+
+      #
+      # Allow TRACE method
+      #
+      # Set to "extended" to also reflect the request body (only for testing and
+      # diagnostic purposes).
+      #
+      # Set to one of:  On | Off | extended
+      TraceEnable Off
+
+      #
+      # Forbid access to version control directories
+      #
+      # If you use version control systems in your document root, you should
+      # probably deny access to their directories. For example, for subversion:
+      #
+      #<DirectoryMatch "/\.svn">
+      #   Require all denied
+      #</DirectoryMatch>
+
+      #
+      # Setting this header will prevent MSIE from interpreting files as something
+      # else than declared by the content type in the HTTP headers.
+      # Requires mod_headers to be enabled.
+      #
+      #Header set X-Content-Type-Options: "nosniff"
+
+      #
+      # Setting this header will prevent other sites from embedding pages from this
+      # site as frames. This defends against clickjacking attacks.
+      # Requires mod_headers to be enabled.
+      #
+      #Header set X-Frame-Options: "sameorigin"
     local_settings:
       config:
         # Use "True" and "False" as Titlecase strings with quotes, boolean
@@ -105,6 +190,13 @@ conf:
         debug: "False"
         keystone_multidomain_support: "True"
         keystone_default_domain: Default
+        disable_password_reveal: "False"
+        csrf_cookie_secure: "False"
+        session_cookie_secure: "False"
+        session_cookie_httponly: "False"
+        secure_proxy_ssl_header: false
+        password_autocomplete: "off"
+        disallow_iframe_embed: "False"
         openstack_cinder_features:
           enable_backup: "True"
         openstack_neutron_network:
@@ -137,6 +229,7 @@ conf:
           - id: 'material'
             name: 'Material'
             path: 'themes/material'
+        log_level: "DEBUG"
       template: |
         import os
 
@@ -175,12 +268,16 @@ conf:
         # https://docs.djangoproject.com/en/1.4/ref/settings/#secure-proxy-ssl-header
         #SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTOCOL', 'https')
         # https://docs.djangoproject.com/en/1.5/ref/settings/#secure-proxy-ssl-header
-        #SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+        {{- if .Values.conf.horizon.local_settings.config.secure_proxy_ssl_header }}
+        SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+        {{- end }}
 
         # If Horizon is being served through SSL, then uncomment the following two
         # settings to better secure the cookies from security exploits
-        #CSRF_COOKIE_SECURE = True
-        #SESSION_COOKIE_SECURE = True
+        CSRF_COOKIE_SECURE = {{ .Values.conf.horizon.local_settings.config.csrf_cookie_secure }}
+        SESSION_COOKIE_SECURE = {{ .Values.conf.horizon.local_settings.config.session_cookie_secure }}
+
+        SESSION_COOKIE_HTTPONLY = {{ .Values.conf.horizon.local_settings.config.session_cookie_httponly }}
 
         # Overrides for OpenStack API versions. Use this setting to force the
         # OpenStack dashboard to use a specific API version for a given service API.
@@ -242,11 +339,11 @@ conf:
 
         # Turn off browser autocompletion for forms including the login form and
         # the database creation workflow if so desired.
-        #HORIZON_CONFIG["password_autocomplete"] = "off"
+        HORIZON_CONFIG["password_autocomplete"] = '{{ .Values.conf.horizon.local_settings.config.password_autocomplete }}'
 
         # Setting this to True will disable the reveal button for password fields,
         # including on the login form.
-        #HORIZON_CONFIG["disable_password_reveal"] = False
+        HORIZON_CONFIG["disable_password_reveal"] = {{ .Values.conf.horizon.local_settings.config.disable_password_reveal }}
 
         LOCAL_PATH = '/tmp'
 
@@ -300,6 +397,11 @@ conf:
 
         OPENSTACK_KEYSTONE_URL = "{{ tuple "identity" "internal" "api" . | include "helm-toolkit.endpoints.keystone_endpoint_uri_lookup" }}"
         OPENSTACK_KEYSTONE_DEFAULT_ROLE = "member"
+
+        # This setting specifies the name of the header with remote IP address. If not present,
+        # then REMOTE_ADDR header is used. The commom value for this setting is HTTP_X_REAL_IP
+        # or HTTP_X_FORWARDED_FORx
+        SECURE_PROXY_ADDR_HEADER = 'HTTP_X_FORWARDED_FOR'
 
         {{- if .Values.conf.horizon.local_settings.config.auth.sso.enabled }}
         # Enables keystone web single-sign-on if set to True.
@@ -573,72 +675,72 @@ conf:
                 },
                 'horizon': {
                     'handlers': ['console'],
-                    'level': 'DEBUG',
+                    'level': '{{ .Values.conf.horizon.local_settings.config.log_level }}',
                     'propagate': False,
                 },
                 'openstack_dashboard': {
                     'handlers': ['console'],
-                    'level': 'DEBUG',
+                    'level': '{{ .Values.conf.horizon.local_settings.config.log_level }}',
                     'propagate': False,
                 },
                 'novaclient': {
                     'handlers': ['console'],
-                    'level': 'DEBUG',
+                    'level': '{{ .Values.conf.horizon.local_settings.config.log_level }}',
                     'propagate': False,
                 },
                 'cinderclient': {
                     'handlers': ['console'],
-                    'level': 'DEBUG',
+                    'level': '{{ .Values.conf.horizon.local_settings.config.log_level }}',
                     'propagate': False,
                 },
                 'glanceclient': {
                     'handlers': ['console'],
-                    'level': 'DEBUG',
+                    'level': '{{ .Values.conf.horizon.local_settings.config.log_level }}',
                     'propagate': False,
                 },
                 'glanceclient': {
                     'handlers': ['console'],
-                    'level': 'DEBUG',
+                    'level': '{{ .Values.conf.horizon.local_settings.config.log_level }}',
                     'propagate': False,
                 },
                 'neutronclient': {
                     'handlers': ['console'],
-                    'level': 'DEBUG',
+                    'level': '{{ .Values.conf.horizon.local_settings.config.log_level }}',
                     'propagate': False,
                 },
                 'heatclient': {
                     'handlers': ['console'],
-                    'level': 'DEBUG',
+                    'level': '{{ .Values.conf.horizon.local_settings.config.log_level }}',
                     'propagate': False,
                 },
                 'ceilometerclient': {
                     'handlers': ['console'],
-                    'level': 'DEBUG',
+                    'level': '{{ .Values.conf.horizon.local_settings.config.log_level }}',
                     'propagate': False,
                 },
                 'troveclient': {
                     'handlers': ['console'],
-                    'level': 'DEBUG',
+                    'level': '{{ .Values.conf.horizon.local_settings.config.log_level }}',
                     'propagate': False,
                 },
                 'swiftclient': {
                     'handlers': ['console'],
-                    'level': 'DEBUG',
+                    'level': '{{ .Values.conf.horizon.local_settings.config.log_level }}',
                     'propagate': False,
                 },
                 'openstack_auth': {
                     'handlers': ['console'],
-                    'level': 'DEBUG',
+                    'level': '{{ .Values.conf.horizon.local_settings.config.log_level }}',
                     'propagate': False,
                 },
                 'nose.plugins.manager': {
                     'handlers': ['console'],
-                    'level': 'DEBUG',
+                    'level': '{{ .Values.conf.horizon.local_settings.config.log_level }}',
                     'propagate': False,
                 },
                 'django': {
                     'handlers': ['console'],
-                    'level': 'DEBUG',
+                    'level': '{{ .Values.conf.horizon.local_settings.config.log_level }}',
                     'propagate': False,
                 },
                 'iso8601': {
@@ -771,7 +873,7 @@ conf:
         #  $glance --os-image-api-version 2 help md-namespace-import
         #  $glance-manage db_load_metadefs <directory_with_definition_files>
         #
-        # See Metadata Definitions on: http://docs.openstack.org/developer/glance/
+        # See Metadata Definitions on: https://docs.openstack.org/glance/latest/
 
         # Indicate to the Sahara data processing service whether or not
         # automatic floating IP allocation is in effect.  If it is not
@@ -816,7 +918,7 @@ conf:
         # where iframes are not used in deployment. Default setting is True.
         # For more information see:
         # http://tinyurl.com/anticlickjack
-        # DISALLOW_IFRAME_EMBED = True
+        DISALLOW_IFRAME_EMBED = {{ .Values.conf.horizon.local_settings.config.disallow_iframe_embed }}
 
         STATIC_ROOT = '/var/www/html/horizon'
     policy:
@@ -1936,6 +2038,14 @@ conf:
         'os_compute_api:servers:stop': 'rule:admin_or_owner'
         'os_compute_api:servers:trigger_crash_dump': 'rule:admin_or_owner'
         'os_compute_api:servers:update': 'rule:admin_or_owner'
+    # list of panels to enable for horizon
+    # this requires that the panels are already installed in the horizon image, if they are not
+    # nothing will be added
+    # the name of the panel should be the name of the dir where the panel is installed
+    # for example heat_dashboard, cloudkittydashboard or neutron_taas_dashboard
+    extra_panels:
+      - heat_dashboard
+      - neutron_taas_dashboard
 
 dependencies:
   dynamic:
@@ -1955,6 +2065,8 @@ dependencies:
           service: oslo_cache
         - endpoint: internal
           service: oslo_db
+        - endpoint: internal
+          service: identity
     db_drop:
       services:
         - endpoint: internal
@@ -1973,24 +2085,49 @@ dependencies:
       services:
         - endpoint: internal
           service: local_image_registry
+    tests:
+      services:
+        - endpoint: internal
+          service: dashboard
 
 pod:
+  security_context:
+    horizon:
+      pod:
+        runAsUser: 42424
+      container:
+        horizon:
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
   affinity:
     anti:
       type:
         default: preferredDuringSchedulingIgnoredDuringExecution
       topologyKey:
         default: kubernetes.io/hostname
+      weight:
+        default: 10
   mounts:
     horizon_db_init:
       init_container: null
       horizon_db_init:
+        volumeMounts:
+        volumes:
     horizon_db_sync:
       init_container: null
       horizon_db_sync:
+        volumeMounts:
+        volumes:
     horizon:
       init_container: null
       horizon:
+        volumeMounts:
+        volumes:
+    horizon_tests:
+      init_container: null
+      horizon_tests:
+        volumeMounts:
+        volumes:
   replicas:
     server: 1
   lifecycle:
@@ -2014,7 +2151,7 @@ pod:
         memory: "128Mi"
         cpu: "100m"
       limits:
-        memory: "1204Mi"
+        memory: "1024Mi"
         cpu: "2000m"
     jobs:
       db_init:
@@ -2045,9 +2182,18 @@ pod:
         limits:
           memory: "1024Mi"
           cpu: "2000m"
+      tests:
+        requests:
+          memory: "128Mi"
+          cpu: "100m"
+        limits:
+          memory: "1024Mi"
+          cpu: "2000m"
 
 # Names of secrets used by bootstrap and environmental checks
 secrets:
+  identity:
+    admin: horizon-keystone-admin
   oslo_db:
     admin: horizon-db-admin
     horizon: horizon-db-user
@@ -2075,9 +2221,17 @@ endpoints:
         node: 5000
   identity:
     name: keystone
+    auth:
+      admin:
+        region_name: RegionOne
+        username: admin
+        password: password
+        project_name: admin
+        user_domain_name: default
+        project_domain_name: default
     hosts:
-      default: keystone-api
-      public: keystone
+      default: keystone
+      internal: keystone-api
     host_fqdn_override:
       default: null
     path:
@@ -2134,6 +2288,36 @@ endpoints:
     port:
       mysql:
         default: 3306
+  #NOTE(tp6510): these endpoints allow for things like DNS lookups and apiserver access.
+  # They are using to enable the Egress K8s network policy.
+  k8s:
+    port:
+      api:
+        default: 6443
+        internal: 5000
+  default:
+    namespace: default
+  kube_system:
+    namespace: kube-system
+  kube_public:
+    namespace: kube-public
+
+network_policy:
+  horizon:
+    ingress:
+      - from:
+        - podSelector:
+            matchLabels:
+              application: horizon
+        - podSelector:
+            matchLabels:
+              application: ingress
+        - namespaceSelector:
+            matchLabels:
+              name: kube-system
+      - ports:
+        - protocol: TCP
+          port: 80
 
 manifests:
   configmap_bin: true
@@ -2145,7 +2329,10 @@ manifests:
   job_db_drop: false
   job_image_repo_sync: true
   pdb: true
+  pod_helm_test: true
+  network_policy: false
   secret_db: true
   secret_ingress_tls: true
+  secret_keystone: true
   service_ingress: true
   service: true

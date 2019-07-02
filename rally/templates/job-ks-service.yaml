@@ -24,6 +24,8 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: rally-ks-service
+  annotations:
+    {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" }}
 spec:
   template:
     metadata:
@@ -44,6 +46,8 @@ spec:
           command:
             - /tmp/ks-service.sh
           volumeMounts:
+            - name: pod-tmp
+              mountPath: /tmp
             - name: ks-service-sh
               mountPath: /tmp/ks-service.sh
               subPath: ks-service.sh
@@ -58,6 +62,8 @@ spec:
               value: {{ $osServiceType }}
 {{- end }}
       volumes:
+        - name: pod-tmp
+          emptyDir: {}
         - name: ks-service-sh
           configMap:
             name: rally-bin

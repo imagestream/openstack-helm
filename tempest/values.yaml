@@ -25,8 +25,8 @@ labels:
 images:
   tags:
     dep_check: quay.io/stackanetes/kubernetes-entrypoint:v0.3.1
-    tempest_run_tests: docker.io/kolla/ubuntu-source-tempest:3.0.3
-    ks_user: docker.io/openstackhelm/heat:newton
+    tempest_run_tests: docker.io/openstackhelm/tempest:latest-ubuntu_xenial
+    ks_user: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
     image_repo_sync: docker.io/docker:17.07.0
   pull_policy: "IfNotPresent"
   local_registry:
@@ -34,6 +34,11 @@ images:
     exclude:
       - dep_check
       - image_repo_sync
+
+jobs:
+  run_tests:
+    backoffLimit: 6
+    restartPolicy: OnFailure
 
 pod:
   user:
@@ -91,7 +96,7 @@ dependencies:
 
 conf:
   script: |
-    tempest run --smoke
+    tempest run --config-file /etc/tempest/tempest.conf -w 4 --smoke
   # The following sections can be used to blacklist and whitelist specific tests.
   # If either section is not empty, it will be used to create an entry in the
   # tempest-etc configmap and will be mounted into the tempest-run-tests pod
@@ -121,15 +126,26 @@ conf:
   #   - (?:tempest\.scenario\.test_network_basic_ops\.TestNetworkBasicOps\.test_update_instance_port_admin_state)
   tempest:
     auth:
+      # admin_username value set by configmap-etc
+      admin_username: null
+      # admin_password value set by configmap-etc
+      admin_password: null
+      # admin_project_name value set by configmap-etc
+      admin_project_name: null
+      # admin_domain_name value set by configmap-etc
+      admin_domain_name: null
       use_dynamic_credentials: true
-      admin_domain_scope: true
-      tempest_roles: admin, member
-      min_compute_nodes: 1
     identity:
+      admin_domain_scope: false
       auth_version: v3
+      # region value set by configmap-etc
+      region: null
+      # uri_v3 value set by configmap-etc
+      uri_v3: null
     identity-feature-enabled:
-      api_v2: false
       api_v3: true
+      # this value should be the same as the keystone chart conf.keystone.identity.domain_specific_drivers_enabled
+      domain_specific_drivers: true
     image:
       http_image: "http://download.cirros-cloud.net/0.3.5/cirros-0.3.5-x86_64-disk.img"
       container_formats: bare
@@ -195,9 +211,33 @@ conf:
       disk_formats: raw
       backend_name: rbd1
       storage_protocol: rbd
-    volume-feature-enabled:
-      api_v1: False
-      api_v3: True
+      catalog_type: volumev3
+  cleanup:
+    force: false
+    enabled: true
+  tempest_logging:
+    loggers:
+      keys: root, tempest
+    handlers:
+      keys: stdout
+    formatters:
+      keys: tests
+    logger_root:
+      level: DEBUG
+      handlers: stdout
+    logger_tempest:
+      level: WARN
+      propagate: 0
+      handlers: stdout
+      qualname: tempest
+    handler_stdout:
+      class: StreamHandler
+      level: WARN
+      args: (sys.stdout,)
+      formatter: tests
+    formatter_tests:
+      class: oslo_log.formatters.ContextFormatter
+
 
 pvc:
   enabled: true
@@ -244,8 +284,8 @@ endpoints:
         user_domain_name: service
         project_domain_name: service
     hosts:
-      default: keystone-api
-      public: keystone
+      default: keystone
+      internal: keystone-api
     host_fqdn_override:
       default: null
     path:

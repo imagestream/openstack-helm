@@ -27,6 +27,8 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: nova-novncproxy
+  annotations:
+    {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" }}
   labels:
 {{ tuple $envAll "nova" "novnc-proxy" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 4 }}
 spec:
@@ -40,10 +42,12 @@ spec:
       labels:
 {{ tuple $envAll "nova" "novnc-proxy" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
       annotations:
+{{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
     spec:
       serviceAccountName: {{ $serviceAccountName }}
+{{ dict "envAll" $envAll "application" "nova" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 6 }}
       affinity:
 {{ tuple $envAll "nova" "novnc-proxy" | include "helm-toolkit.snippets.kubernetes_pod_anti_affinity" | indent 8 }}
       nodeSelector:
@@ -55,11 +59,12 @@ spec:
         - name: nova-novncproxy-init
 {{ tuple $envAll "nova_novncproxy" | include "helm-toolkit.snippets.image" | indent 10 }}
 {{ tuple $envAll $envAll.Values.pod.resources.novncproxy | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
-          securityContext:
-            runAsUser: {{ .Values.pod.user.nova.uid }}
+{{ dict "envAll" $envAll "application" "nova" "container" "nova_novncproxy_init" | include "helm-toolkit.snippets.kubernetes_container_security_context" | indent 10 }}
           command:
             - /tmp/nova-console-proxy-init.sh
           volumeMounts:
+            - name: pod-tmp
+              mountPath: /tmp
             - name: nova-bin
               mountPath: /tmp/nova-console-proxy-init.sh
               subPath: nova-console-proxy-init.sh
@@ -68,10 +73,12 @@ spec:
               mountPath: /etc/nova/nova.conf
               subPath: nova.conf
               readOnly: true
+            {{- if .Values.conf.nova.DEFAULT.log_config_append }}
             - name: nova-etc
               mountPath: {{ .Values.conf.nova.DEFAULT.log_config_append }}
               subPath: {{ base .Values.conf.nova.DEFAULT.log_config_append }}
               readOnly: true
+            {{- end }}
             - name: pod-shared
               mountPath: /tmp/pod-shared
             - name: varlibnova
@@ -79,9 +86,12 @@ spec:
         - name: nova-novncproxy-init-assets
 {{ tuple $envAll "nova_novncproxy_assets" | include "helm-toolkit.snippets.image" | indent 10 }}
 {{ tuple $envAll $envAll.Values.pod.resources.novncproxy | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
+{{ dict "envAll" $envAll "application" "nova" "container" "nova_novncproxy_init_assests" | include "helm-toolkit.snippets.kubernetes_container_security_context" | indent 10 }}
           command:
             - /tmp/nova-console-proxy-init-assets.sh
           volumeMounts:
+            - name: pod-tmp
+              mountPath: /tmp
             - name: nova-bin
               mountPath: /tmp/nova-console-proxy-init-assets.sh
               subPath: nova-console-proxy-init-assets.sh
@@ -94,12 +104,23 @@ spec:
         - name: nova-novncproxy
 {{ tuple $envAll "nova_novncproxy" | include "helm-toolkit.snippets.image" | indent 10 }}
 {{ tuple $envAll $envAll.Values.pod.resources.novncproxy | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
+{{ dict "envAll" $envAll "application" "nova" "container" "nova_novncproxy" | include "helm-toolkit.snippets.kubernetes_container_security_context" | indent 10 }}
+          readinessProbe:
+            tcpSocket:
+              port: {{ tuple "compute_novnc_proxy" "internal" "novnc_proxy" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
+            initialDelaySeconds: 30
+          livenessProbe:
+            tcpSocket:
+              port: {{ tuple "compute_novnc_proxy" "internal" "novnc_proxy" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
+            initialDelaySeconds: 30
           command:
             - /tmp/nova-console-proxy.sh
           ports:
             - name: n-novnc
               containerPort: {{ tuple "compute_novnc_proxy" "internal" "novnc_proxy" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
           volumeMounts:
+            - name: pod-tmp
+              mountPath: /tmp
             - name: nova-bin
               mountPath: /tmp/nova-console-proxy.sh
               subPath: nova-console-proxy.sh
@@ -121,13 +142,15 @@ spec:
               mountPath: /var/lib/nova
 {{ if $mounts_nova_novncproxy.volumeMounts }}{{ toYaml $mounts_nova_novncproxy.volumeMounts | indent 12 }}{{ end }}
       volumes:
+        - name: pod-tmp
+          emptyDir: {}
         - name: nova-bin
           configMap:
             name: nova-bin
             defaultMode: 0555
         - name: nova-etc
-          configMap:
-            name: nova-etc
+          secret:
+            secretName: nova-etc
             defaultMode: 0444
         - name: pod-usr-share-novnc
           emptyDir: {}

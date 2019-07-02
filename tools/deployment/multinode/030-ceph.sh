@@ -19,26 +19,19 @@ set -xe
 #NOTE: Deploy command
 [ -s /tmp/ceph-fs-uuid.txt ] || uuidgen > /tmp/ceph-fs-uuid.txt
 CEPH_PUBLIC_NETWORK="$(./tools/deployment/multinode/kube-node-subnet.sh)"
-CEPH_CLUSTER_NETWORK="$(./tools/deployment/multinode/kube-node-subnet.sh)"
+CEPH_CLUSTER_NETWORK="${CEPH_PUBLIC_NETWORK}"
 CEPH_FS_ID="$(cat /tmp/ceph-fs-uuid.txt)"
-#NOTE(portdirect): to use RBD devices with Ubuntu kernels < 4.5 this
-# should be set to 'hammer'
-. /etc/os-release
-if [ "x${ID}" == "xubuntu" ] && \
-   [ "$(uname -r | awk -F "." '{ print $2 }')" -lt "5" ]; then
+#NOTE(portdirect): to use RBD devices with kernels < 4.5 this should be set to 'hammer'
+LOWEST_CLUSTER_KERNEL_VERSION=$(kubectl get node  -o go-template='{{range .items}}{{.status.nodeInfo.kernelVersion}}{{"\n"}}{{ end }}' | sort -V | tail -1)
+if [ "$(echo ${LOWEST_CLUSTER_KERNEL_VERSION} | awk -F "." '{ print $1 }')" -lt "4" ] || [ "$(echo ${LOWEST_CLUSTER_KERNEL_VERSION} | awk -F "." '{ print $2 }')" -lt "15" ]; then
+  echo "Using hammer crush tunables"
   CRUSH_TUNABLES=hammer
 else
   CRUSH_TUNABLES=null
 fi
-if [ "x${ID}" == "xcentos" ]; then
-  CRUSH_TUNABLES=hammer
-fi
+NUMBER_OF_OSDS="$(kubectl get nodes -l ceph-osd=enabled --no-headers | wc -l)"
 tee /tmp/ceph.yaml << EOF
 endpoints:
-  identity:
-    namespace: openstack
-  object_store:
-    namespace: ceph
   ceph_mon:
     namespace: ceph
 network:
@@ -50,21 +43,17 @@ deployment:
   rbd_provisioner: true
   cephfs_provisioner: true
   client_secrets: false
-  rgw_keystone_user_and_endpoints: false
 bootstrap:
   enabled: true
 conf:
   ceph:
     global:
       fsid: ${CEPH_FS_ID}
-  rgw_ks:
-    enabled: true
   pool:
     crush:
       tunables: ${CRUSH_TUNABLES}
     target:
-      # NOTE(portdirect): 5 nodes, with one osd per node
-      osd: 5
+      osd: ${NUMBER_OF_OSDS}
       pg_per_osd: 100
   storage:
     osd:
@@ -74,10 +63,14 @@ conf:
         journal:
           type: directory
           location: /var/lib/openstack-helm/ceph/osd/journal-one
+
+manifests:
+  cronjob_checkPGs: true
 EOF
 
+: ${OSH_INFRA_PATH:="../openstack-helm-infra"}
 for CHART in ceph-mon ceph-osd ceph-client ceph-provisioners; do
-  helm upgrade --install ${CHART} ./${CHART} \
+  helm upgrade --install ${CHART} ${OSH_INFRA_PATH}/${CHART} \
     --namespace=ceph \
     --values=/tmp/ceph.yaml \
     ${OSH_EXTRA_HELM_ARGS} \

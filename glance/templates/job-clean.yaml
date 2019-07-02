@@ -18,9 +18,7 @@ limitations under the License.
 {{- $envAll := . }}
 {{- if .Values.bootstrap.enabled }}
 
-{{- $randStringSuffix := randAlphaNum 5 | lower }}
-
-{{- $serviceAccountName := print "glance-clean-" $randStringSuffix }}
+{{- $serviceAccountName := print "glance-clean" }}
 {{ tuple $envAll "clean" $serviceAccountName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1beta1
@@ -52,10 +50,11 @@ subjects:
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: {{ print "glance-clean-" $randStringSuffix }}
+  name: {{ print "glance-clean" }}
   annotations:
     "helm.sh/hook": pre-delete
     "helm.sh/hook-delete-policy": hook-succeeded
+    {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" }}
 spec:
   template:
     metadata:
@@ -83,6 +82,8 @@ spec:
           command:
             - /tmp/clean-secrets.sh
           volumeMounts:
+            - name: pod-tmp
+              mountPath: /tmp
             - name: glance-bin
               mountPath: /tmp/clean-secrets.sh
               subPath: clean-secrets.sh
@@ -98,11 +99,15 @@ spec:
           command:
             - /tmp/clean-image.sh
           volumeMounts:
+            - name: pod-tmp
+              mountPath: /tmp
             - name: glance-bin
               mountPath: /tmp/clean-image.sh
               subPath: clean-image.sh
               readOnly: true
       volumes:
+        - name: pod-tmp
+          emptyDir: {}
         - name: glance-bin
           configMap:
             name: glance-bin

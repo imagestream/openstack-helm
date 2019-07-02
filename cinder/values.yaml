@@ -43,21 +43,21 @@ release_group: null
 
 images:
   tags:
-    test: docker.io/kolla/ubuntu-source-rally:4.0.0
-    db_init: docker.io/openstackhelm/heat:newton
-    cinder_db_sync: docker.io/openstackhelm/cinder:newton
-    db_drop: docker.io/openstackhelm/heat:newton
+    test: docker.io/xrally/xrally-openstack:1.3.0
+    db_init: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
+    cinder_db_sync: docker.io/openstackhelm/cinder:ocata-ubuntu_xenial
+    db_drop: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
     rabbit_init: docker.io/rabbitmq:3.7-management
-    ks_user: docker.io/openstackhelm/heat:newton
-    ks_service: docker.io/openstackhelm/heat:newton
-    ks_endpoints: docker.io/openstackhelm/heat:newton
-    cinder_api: docker.io/openstackhelm/cinder:newton
-    bootstrap: docker.io/openstackhelm/heat:newton
-    cinder_scheduler: docker.io/openstackhelm/cinder:newton
-    cinder_volume: docker.io/openstackhelm/cinder:newton
-    cinder_volume_usage_audit: docker.io/openstackhelm/cinder:newton
+    ks_user: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
+    ks_service: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
+    ks_endpoints: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
+    cinder_api: docker.io/openstackhelm/cinder:ocata-ubuntu_xenial
+    bootstrap: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
+    cinder_scheduler: docker.io/openstackhelm/cinder:ocata-ubuntu_xenial
+    cinder_volume: docker.io/openstackhelm/cinder:ocata-ubuntu_xenial
+    cinder_volume_usage_audit: docker.io/openstackhelm/cinder:ocata-ubuntu_xenial
     cinder_storage_init: docker.io/port/ceph-config-helper:v1.10.3
-    cinder_backup: docker.io/openstackhelm/cinder:newton
+    cinder_backup: docker.io/openstackhelm/cinder:ocata-ubuntu_xenial
     cinder_backup_storage_init: docker.io/port/ceph-config-helper:v1.10.3
     dep_check: quay.io/stackanetes/kubernetes-entrypoint:v0.3.1
     image_repo_sync: docker.io/docker:17.07.0
@@ -71,40 +71,73 @@ images:
 jobs:
   volume_usage_audit:
     cron: "*/5 * * * *"
+    starting_deadline: 600
     history:
       success: 3
       failed: 1
 
 pod:
-  user:
+  security_context:
     cinder:
-      uid: 42424
+      pod:
+        runAsUser: 42424
+      container:
+        cinder_api:
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
+        cinder_backup:
+          redOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
+        cinder_scheduler:
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
+        cinder_volume:
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
   affinity:
     anti:
       type:
         default: preferredDuringSchedulingIgnoredDuringExecution
       topologyKey:
         default: kubernetes.io/hostname
+      weight:
+        default: 10
 
   mounts:
     cinder_api:
       init_container: null
       cinder_api:
+        volumeMounts:
+        volumes:
     cinder_scheduler:
       init_container: null
       cinder_scheduler:
+        volumeMounts:
+        volumes:
     cinder_volume:
       init_container: null
       cinder_volume:
+        volumeMounts:
+        volumes:
     cinder_volume_usage_audit:
       init_container: null
       cinder_volume_usage_audit:
+        volumeMounts:
+        volumes:
     cinder_backup:
       init_container: null
       cinder_backup:
+        volumeMounts:
+        volumes:
     cinder_tests:
       init_container: null
       cinder_tests:
+        volumeMounts:
+        volumes:
+    cinder_db_sync:
+      cinder_db_sync:
+        volumeMounts:
+        volumes:
   replicas:
     api: 1
     volume: 1
@@ -270,7 +303,15 @@ network:
       enabled: false
       port: 30877
 
+ceph_client:
+  configmap: ceph-etc
+  user_secret_name: pvc-ceph-client-key
+
 conf:
+  software:
+    rbd:
+      rbd_pool_app_name_backup: cinder-backup
+      rbd_pool_app_name: cinder-volume
   paste:
     composite:osapi_volume:
       use: call:cinder.api:root_app_factory
@@ -281,18 +322,18 @@ conf:
     composite:openstack_volume_api_v1:
       use: call:cinder.api.middleware.auth:pipeline_factory
       noauth: cors http_proxy_to_wsgi request_id faultwrap sizelimit osprofiler noauth apiv1
-      keystone: cors http_proxy_to_wsgi request_id faultwrap sizelimit osprofiler authtoken keystonecontext apiv1
-      keystone_nolimit: cors http_proxy_to_wsgi request_id faultwrap sizelimit osprofiler authtoken keystonecontext apiv1
+      keystone: cors http_proxy_to_wsgi request_id faultwrap sizelimit osprofiler authtoken audit keystonecontext apiv1
+      keystone_nolimit: cors http_proxy_to_wsgi request_id faultwrap sizelimit osprofiler authtoken audit keystonecontext apiv1
     composite:openstack_volume_api_v2:
       use: call:cinder.api.middleware.auth:pipeline_factory
       noauth: cors http_proxy_to_wsgi request_id faultwrap sizelimit osprofiler noauth apiv2
-      keystone: cors http_proxy_to_wsgi request_id faultwrap sizelimit osprofiler authtoken keystonecontext apiv2
-      keystone_nolimit: cors http_proxy_to_wsgi request_id faultwrap sizelimit osprofiler authtoken keystonecontext apiv2
+      keystone: cors http_proxy_to_wsgi request_id faultwrap sizelimit osprofiler authtoken audit keystonecontext apiv2
+      keystone_nolimit: cors http_proxy_to_wsgi request_id faultwrap sizelimit osprofiler authtoken audit keystonecontext apiv2
     composite:openstack_volume_api_v3:
       use: call:cinder.api.middleware.auth:pipeline_factory
       noauth: cors http_proxy_to_wsgi request_id faultwrap sizelimit osprofiler noauth apiv3
-      keystone: cors http_proxy_to_wsgi request_id faultwrap sizelimit osprofiler authtoken keystonecontext apiv3
-      keystone_nolimit: cors http_proxy_to_wsgi request_id faultwrap sizelimit osprofiler authtoken keystonecontext apiv3
+      keystone: cors http_proxy_to_wsgi request_id faultwrap sizelimit osprofiler authtoken audit keystonecontext apiv3
+      keystone_nolimit: cors http_proxy_to_wsgi request_id faultwrap sizelimit osprofiler authtoken audit keystonecontext apiv3
     filter:request_id:
       paste.filter_factory: oslo_middleware.request_id:RequestId.factory
     filter:http_proxy_to_wsgi:
@@ -322,6 +363,9 @@ conf:
       paste.filter_factory: cinder.api.middleware.auth:CinderKeystoneContext.factory
     filter:authtoken:
       paste.filter_factory: keystonemiddleware.auth_token:filter_factory
+    filter:audit:
+      paste.filter_factory: keystonemiddleware.audit:filter_factory
+      audit_map_file: /etc/cinder/api_audit_map.conf
   policy:
     context_is_admin: role:admin
     admin_or_owner: is_admin:True or project_id:%(project_id)s
@@ -438,6 +482,26 @@ conf:
     clusters:get: rule:admin_api
     clusters:get_all: rule:admin_api
     clusters:update: rule:admin_api
+  api_audit_map:
+    DEFAULT:
+      target_endpoint_type: None
+    custom_actions:
+      associate: update/associate
+      disassociate: update/disassociate_all
+      disassociate_all: update/disassociate_all
+      associations: read/list/associations
+    path_keywords:
+      defaults: None
+      detail: None
+      limits: None
+      os-quota-specs: project
+      qos-specs: qos-spec
+      snapshots: snapshot
+      types: type
+      volumes: volume
+    service_endpoints:
+      volume: service/storage/block
+      volumev2: service/storage/block
   cinder_sudoers: |
     # This sudoers file supports rootwrap for both Kolla and LOCI Images.
     Defaults !requiretty
@@ -717,6 +781,7 @@ conf:
         chunk_size: 8
   cinder:
     DEFAULT:
+      resource_query_filters_file: /etc/cinder/resource_filters.json
       log_config_append: /etc/cinder/logging.conf
       use_syslog: false
       use_stderr: true
@@ -732,6 +797,10 @@ conf:
       enabled_backends: "rbd1"
       # NOTE(portdirect): "cinder.backup.drivers.ceph"  and
       # "cinder.backup.drivers.posix" also supported
+      # NOTE(rchurch): As of Stein, drivers by class name are required
+      # - cinder.backup.drivers.swift.SwiftBackupDriver
+      # - cinder.backup.drivers.ceph.CephBackupDriver
+      # - cinder.backup.drivers.posix.PosixBackupDriver
       backup_driver: "cinder.backup.drivers.ceph"
       # Backup: Ceph RBD options
       backup_ceph_conf: "/etc/ceph/ceph.conf"
@@ -739,6 +808,10 @@ conf:
       backup_ceph_pool: cinder.backups
       # Backup: Posix options
       backup_posix_path: /var/lib/cinder/backup
+      auth_strategy: keystone
+      # Internal tenant id
+      internal_project_name: internal_cinder
+      internal_user_name: internal_cinder
     database:
       max_retries: -1
     keystone_authtoken:
@@ -749,6 +822,10 @@ conf:
       lock_path: "/var/lib/cinder/tmp"
     oslo_messaging_notifications:
       driver: messagingv2
+    oslo_middleware:
+      enable_proxy_headers_parsing: true
+    oslo_messaging_rabbit:
+      rabbit_ha_queues: true
     coordination:
       backend_url: file:///var/lib/cinder/coordination
   logging:
@@ -767,7 +844,7 @@ conf:
         - default
     logger_root:
       level: WARNING
-      handlers: null
+      handlers: stdout
     logger_cinder:
       level: INFO
       handlers:
@@ -807,8 +884,10 @@ conf:
       formatter: context
     formatter_context:
       class: oslo_log.formatters.ContextFormatter
+      datefmt: "%Y-%m-%d %H:%M:%S"
     formatter_default:
       format: "%(message)s"
+      datefmt: "%Y-%m-%d %H:%M:%S"
   rabbitmq:
     #NOTE(rk760n): adding rmq policy to mirror messages from notification queues and set expiration time for the ones
     policies:
@@ -822,7 +901,7 @@ conf:
           message-ttl: 70000
         priority: 0
         apply-to: all
-        pattern: '(notifications)\.'
+        pattern: '^(?!amq\.).*'
 
   rally_tests:
     run_tempest: false
@@ -848,6 +927,44 @@ conf:
           sla:
             failure_rate:
               max: 0
+  resource_filters:
+    volume:
+      - name
+      - status
+      - metadata
+      - bootable
+      - migration_status
+      - availability_zone
+      - group_id
+    backup:
+      - name
+      - status
+      - volume_id
+    snapshot:
+      - name
+      - status
+      - volume_id
+      - metadata
+      - availability_zone
+    group: []
+    group_snapshot:
+      - status
+      - group_id
+    attachment:
+      - volume_id
+      - status
+      - instance_id
+      - attach_status
+    message:
+      - resource_uuid
+      - resource_type
+      - event_id
+      - request_id
+      - message_level
+    pool:
+      - name
+      - volume_type
+    volume_type: []
 
 backup:
   external_ceph_rbd:
@@ -1046,14 +1163,14 @@ endpoints:
       test:
         role: admin
         region_name: RegionOne
-        username: test
+        username: cinder-test
         password: password
         project_name: test
         user_domain_name: service
         project_domain_name: service
     hosts:
-      default: keystone-api
-      public: keystone
+      default: keystone
+      internal: keystone-api
     host_fqdn_override:
       default: null
     path:
@@ -1185,6 +1302,9 @@ endpoints:
       cinder:
         username: cinder
         password: password
+    statefulset:
+      replicas: 2
+      name: rabbitmq-rabbitmq
     hosts:
       default: rabbitmq
     host_fqdn_override:
@@ -1226,6 +1346,26 @@ endpoints:
         default: 24224
       metrics:
         default: 24220
+  #NOTE(tp6510): these endpoints allow for things like DNS lookups and apiserver access.
+  # They are using to enable the Egress K8s network policy.
+  k8s:
+    port:
+      api:
+        default: 6443
+        internal: 5000
+  default:
+    namespace: default
+  kube_system:
+    namespace: kube-system
+  kube_public:
+    namespace: kube-public
+
+network_policy:
+  cinder:
+    ingress:
+      - {}
+    egress:
+      - {}
 
 manifests:
   configmap_bin: true
@@ -1239,6 +1379,7 @@ manifests:
   job_backup_storage_init: true
   job_bootstrap: true
   job_clean: true
+  job_create_internal_tenant: true
   job_db_init: true
   job_image_repo_sync: true
   job_rabbit_init: true
@@ -1251,6 +1392,7 @@ manifests:
   pdb_api: true
   pod_rally_test: true
   pvc_backup: true
+  network_policy: false
   secret_db: true
   secret_ingress_tls: true
   secret_keystone: true

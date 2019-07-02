@@ -38,19 +38,19 @@ release_group: null
 
 images:
   tags:
-    test: docker.io/kolla/ubuntu-source-rally:4.0.0
+    test: docker.io/xrally/xrally-openstack:1.3.0
     glance_storage_init: docker.io/port/ceph-config-helper:v1.10.3
-    db_init: docker.io/openstackhelm/heat:newton
-    glance_db_sync: docker.io/openstackhelm/glance:newton
-    db_drop: docker.io/openstackhelm/heat:newton
-    ks_user: docker.io/openstackhelm/heat:newton
-    ks_service: docker.io/openstackhelm/heat:newton
-    ks_endpoints: docker.io/openstackhelm/heat:newton
+    db_init: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
+    glance_db_sync: docker.io/openstackhelm/glance:ocata-ubuntu_xenial
+    db_drop: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
+    ks_user: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
+    ks_service: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
+    ks_endpoints: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
     rabbit_init: docker.io/rabbitmq:3.7-management
-    glance_api: docker.io/openstackhelm/glance:newton
-    glance_registry: docker.io/openstackhelm/glance:newton
+    glance_api: docker.io/openstackhelm/glance:ocata-ubuntu_xenial
+    glance_registry: docker.io/openstackhelm/glance:ocata-ubuntu_xenial
     # Bootstrap image requires curl
-    bootstrap: docker.io/openstackhelm/heat:newton
+    bootstrap: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
     dep_check: quay.io/stackanetes/kubernetes-entrypoint:v0.3.1
     image_repo_sync: docker.io/docker:17.07.0
   pull_policy: "IfNotPresent"
@@ -76,10 +76,54 @@ bootstrap:
         container_format: bare
         private: true
         properties:
-          hypervisor_type: "qemu"
+          # NOTE: If you want to restrict hypervisor type for this image,
+          # uncomment this and write specific hypervisor type.
+          # hypervisor_type: "qemu"
           os_distro: "cirros"
 
+ceph_client:
+  configmap: ceph-etc
+  user_secret_name: pvc-ceph-client-key
+
+network_policy:
+  glance:
+    ingress:
+      - from:
+        - podSelector:
+            matchLabels:
+              application: glance
+        - podSelector:
+            matchLabels:
+              application: nova
+        - podSelector:
+            matchLabels:
+              application: horizon
+        - podSelector:
+            matchLabels:
+              application: ingress
+        - podSelector:
+            matchLabels:
+              application: heat
+        - podSelector:
+            matchLabels:
+              application: ironic
+        - podSelector:
+            matchLabels:
+              application: cinder
+        ports:
+        - protocol: TCP
+          port: 80
+        - protocol: TCP
+          port: 9191
+        - protocol: TCP
+          port: 9292
+    egress:
+      - {}
+
 conf:
+  software:
+    rbd:
+      rbd_store_pool_app_name: glance-image
   rally_tests:
     run_tempest: false
     tests:
@@ -123,11 +167,11 @@ conf:
     pipeline:glance-api-cachemanagement:
       pipeline: cors healthcheck http_proxy_to_wsgi versionnegotiation osprofiler unauthenticated-context cache cachemanage rootapp
     pipeline:glance-api-keystone:
-      pipeline: cors healthcheck http_proxy_to_wsgi versionnegotiation osprofiler authtoken context  rootapp
+      pipeline: cors healthcheck http_proxy_to_wsgi versionnegotiation osprofiler authtoken audit context  rootapp
     pipeline:glance-api-keystone+caching:
-      pipeline: cors healthcheck http_proxy_to_wsgi versionnegotiation osprofiler authtoken context cache rootapp
+      pipeline: cors healthcheck http_proxy_to_wsgi versionnegotiation osprofiler authtoken audit context cache rootapp
     pipeline:glance-api-keystone+cachemanagement:
-      pipeline: cors healthcheck http_proxy_to_wsgi versionnegotiation osprofiler authtoken context cache cachemanage rootapp
+      pipeline: cors healthcheck http_proxy_to_wsgi versionnegotiation osprofiler authtoken audit context cache cachemanage rootapp
     pipeline:glance-api-trusted-auth:
       pipeline: cors healthcheck http_proxy_to_wsgi versionnegotiation osprofiler context rootapp
     pipeline:glance-api-trusted-auth+cachemanagement:
@@ -160,6 +204,9 @@ conf:
     filter:authtoken:
       paste.filter_factory: keystonemiddleware.auth_token:filter_factory
       delay_auth_decision: true
+    filter:audit:
+      paste.filter_factory: keystonemiddleware.audit:filter_factory
+      audit_map_file: /etc/glance/api_audit_map.conf
     filter:gzip:
       paste.filter_factory: glance.api.middleware.gzip:GzipMiddleware.factory
     filter:osprofiler:
@@ -228,12 +275,16 @@ conf:
       workers: 1
       enable_v1_api: False
       enable_v2_registry: False
+    oslo_middleware:
+      enable_proxy_headers_parsing: true
     keystone_authtoken:
       auth_type: password
       auth_version: v3
       memcache_security_strategy: ENCRYPT
     glance_store:
       rbd_store_chunk_size: 8
+      rbd_store_replication: 3
+      rbd_store_crush_rule: replicated_rule
       rbd_store_pool: glance.images
       rbd_store_user: glance
       rbd_store_ceph_conf: /etc/ceph/ceph.conf
@@ -249,6 +300,8 @@ conf:
       max_retries: -1
     oslo_messaging_notifications:
       driver: messagingv2
+    oslo_messaging_rabbit:
+      rabbit_ha_queues: true
   logging:
     loggers:
       keys:
@@ -265,7 +318,7 @@ conf:
         - default
     logger_root:
       level: WARNING
-      handlers: null
+      handlers: stdout
     logger_glance:
       level: INFO
       handlers:
@@ -305,13 +358,26 @@ conf:
       formatter: context
     formatter_context:
       class: oslo_log.formatters.ContextFormatter
+      datefmt: "%Y-%m-%d %H:%M:%S"
     formatter_default:
       format: "%(message)s"
+      datefmt: "%Y-%m-%d %H:%M:%S"
+  api_audit_map:
+    DEFAULT:
+      target_endpoint_type: None
+    path_keywords:
+      detail: None
+      file: None
+      images: image
+      members: member
+      tags: tag
+    service_endpoints:
+      image: 'service/storage/image'
   paste_registry:
     pipeline:glance-registry:
       pipeline: healthcheck osprofiler unauthenticated-context registryapp
     pipeline:glance-registry-keystone:
-      pipeline: healthcheck osprofiler authtoken context registryapp
+      pipeline: healthcheck osprofiler authtoken audit context registryapp
     pipeline:glance-registry-trusted-auth:
       pipeline: healthcheck osprofiler context registryapp
     app:registryapp:
@@ -330,6 +396,9 @@ conf:
       paste.filter_factory: osprofiler.web:WsgiMiddleware.factory
       hmac_keys: SECRET_KEY  # DEPRECATED
       enabled: yes  # DEPRECATED
+    filter:audit:
+      paste.filter_factory: keystonemiddleware.audit:filter_factory
+      audit_map_file: /etc/glance/api_audit_map.conf
   glance_registry:
     DEFAULT:
       # NOTE(portdirect): the bind port should not be defined, and is manipulated
@@ -377,7 +446,7 @@ conf:
           message-ttl: 70000
         priority: 0
         apply-to: all
-        pattern: '(notifications)\.'
+        pattern: '^(?!amq\.).*'
 
 network:
   api:
@@ -563,14 +632,14 @@ endpoints:
       test:
         role: admin
         region_name: RegionOne
-        username: test
+        username: glance-test
         password: password
         project_name: test
         user_domain_name: service
         project_domain_name: service
     hosts:
-      default: keystone-api
-      public: keystone
+      default: keystone
+      internal: keystone-api
     host_fqdn_override:
       default: null
     path:
@@ -658,6 +727,9 @@ endpoints:
       glance:
         username: glance
         password: password
+    statefulset:
+      replicas: 2
+      name: rabbitmq-rabbitmq
     hosts:
       default: rabbitmq
     host_fqdn_override:
@@ -724,27 +796,62 @@ endpoints:
         default: 24224
       metrics:
         default: 24220
+  #NOTE(tp6510): these endpoints allow for things like DNS lookups and apiserver access.
+  # They are using to enable the Egress K8s network policy.
+  k8s:
+    port:
+      api:
+        default: 6443
+        internal: 5000
+      http:
+        default: 80
+  default:
+    namespace: default
+  kube_system:
+    namespace: kube-system
+  kube_public:
+    namespace: kube-public
 
 pod:
-  user:
+  security_context:
     glance:
-      uid: 42424
+      pod:
+        runAsUser: 42424
+      container:
+        glance_api:
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
+        glance_registry:
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
   affinity:
     anti:
       type:
         default: preferredDuringSchedulingIgnoredDuringExecution
       topologyKey:
         default: kubernetes.io/hostname
+      weight:
+        default: 10
   mounts:
     glance_api:
       init_container: null
       glance_api:
+        volumeMounts:
+        volumes:
     glance_registry:
       init_container: null
       glance_registry:
+        volumeMounts:
+        volumes:
     glance_tests:
       init_container: null
       glance_tests:
+        volumeMounts:
+        volumes:
+    glance_db_sync:
+      glance_db_sync:
+        volumeMounts:
+        volumes:
   replicas:
     api: 1
     registry: 1
@@ -883,6 +990,7 @@ manifests:
   pdb_registry: false
   pod_rally_test: true
   pvc_images: true
+  network_policy: false
   secret_db: true
   secret_ingress_tls: true
   secret_keystone: true
@@ -890,4 +998,4 @@ manifests:
   service_ingress_api: true
   service_ingress_registry: false
   service_api: true
-  service_registry: true
+  service_registry: false

@@ -17,7 +17,7 @@ limitations under the License.
 */}}
 
 set -x
-if [ "x$STORAGE_BACKEND" == "xcinder.backup.drivers.ceph" ]; then
+if [[ $STORAGE_BACKEND =~ 'cinder.backup.drivers.ceph' ]]; then
   SECRET=$(mktemp --suffix .yaml)
   KEYRING=$(mktemp --suffix .keyring)
   function cleanup {
@@ -27,32 +27,37 @@ if [ "x$STORAGE_BACKEND" == "xcinder.backup.drivers.ceph" ]; then
 fi
 
 set -ex
-if [ "x$STORAGE_BACKEND" == "xcinder.backup.drivers.swift" ] || \
-     [ "x$STORAGE_BACKEND" == "xcinder.backup.drivers.posix" ]; then
+if [[ $STORAGE_BACKEND =~ 'cinder.backup.drivers.swift' ]] || \
+     [[ $STORAGE_BACKEND =~ 'cinder.backup.drivers.posix' ]]; then
   echo "INFO: no action required to use $STORAGE_BACKEND"
-elif [ "x$STORAGE_BACKEND" == "xcinder.backup.drivers.ceph" ]; then
+elif [[ $STORAGE_BACKEND =~ 'cinder.backup.drivers.ceph' ]]; then
   ceph -s
   function ensure_pool () {
     ceph osd pool stats $1 || ceph osd pool create $1 $2
-    local test_luminous=$(ceph tell osd.* version | egrep -c "12.2|luminous" | xargs echo)
-    if [[ ${test_luminous} -gt 0 ]]; then
+    local test_version=$(ceph tell osd.* version | egrep -c "mimic|luminous" | xargs echo)
+    if [[ ${test_version} -gt 0 ]]; then
       ceph osd pool application enable $1 $3
     fi
 # NOOOO! Scott
+#    size_protection=$(ceph osd pool get $1 nosizechange | cut -f2 -d: | tr -d '[:space:]')
+#    ceph osd pool set $1 nosizechange 0
 #    ceph osd pool set $1 size ${RBD_POOL_REPLICATION}
+#    ceph osd pool set $1 nosizechange ${size_protection}
 #    ceph osd pool set $1 crush_rule "${RBD_POOL_CRUSH_RULE}"
   }
-  ensure_pool ${RBD_POOL_NAME} ${RBD_POOL_CHUNK_SIZE} "cinder-backup"
+  ensure_pool ${RBD_POOL_NAME} ${RBD_POOL_CHUNK_SIZE} ${RBD_POOL_APP_NAME}
 
   if USERINFO=$(ceph auth get client.${RBD_POOL_USER}); then
-    KEYSTR=$(echo $USERINFO | sed 's/.*\( key = .*\) caps mon.*/\1/')
-    echo $KEYSTR  > ${KEYRING}
+    echo "Cephx user client.${RBD_POOL_USER} already exists"
+    echo "Update its cephx caps"
+    ceph auth caps client.${RBD_POOL_USER} \
+      mon "profile rbd" \
+      osd "profile rbd pool=${RBD_POOL_NAME}"
+    ceph auth get client.${RBD_POOL_USER} -o ${KEYRING}
   else
-    #NOTE(Portdirect): Determine proper privs to assign keyring
     ceph auth get-or-create client.${RBD_POOL_USER} \
-      mon "allow *" \
-      osd "allow *" \
-      mgr "allow *" \
+      mon "profile rbd" \
+      osd "profile rbd pool=${RBD_POOL_NAME}" \
       -o ${KEYRING}
   fi
 

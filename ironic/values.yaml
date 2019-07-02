@@ -32,21 +32,22 @@ labels:
 
 images:
   tags:
-    ironic_manage_cleaning_network: docker.io/openstackhelm/heat:newton
-    ironic_retrive_cleaning_network: docker.io/openstackhelm/heat:newton
-    ironic_retrive_swift_config: docker.io/openstackhelm/heat:newton
+    ironic_manage_cleaning_network: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
+    ironic_retrive_cleaning_network: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
+    ironic_retrive_swift_config: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
     # Bootstrap image requires curl
-    bootstrap: docker.io/openstackhelm/heat:newton
-    db_init: docker.io/openstackhelm/heat:newton
-    ironic_db_sync: docker.io/openstackhelm/ironic:newton
-    ks_user: docker.io/openstackhelm/heat:newton
-    ks_service: docker.io/openstackhelm/heat:newton
-    ks_endpoints: docker.io/openstackhelm/heat:newton
+    bootstrap: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
+    db_drop: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
+    db_init: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
+    ironic_db_sync: docker.io/openstackhelm/ironic:ocata-ubuntu_xenial
+    ks_user: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
+    ks_service: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
+    ks_endpoints: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
     rabbit_init: docker.io/rabbitmq:3.7-management
-    ironic_api: docker.io/openstackhelm/ironic:newton
-    ironic_conductor: docker.io/openstackhelm/ironic:newton
-    ironic_pxe: docker.io/openstackhelm/ironic:newton
-    ironic_pxe_init: docker.io/openstackhelm/ironic:newton
+    ironic_api: docker.io/openstackhelm/ironic:ocata-ubuntu_xenial
+    ironic_conductor: docker.io/openstackhelm/ironic:ocata-ubuntu_xenial
+    ironic_pxe: docker.io/openstackhelm/ironic:ocata-ubuntu_xenial
+    ironic_pxe_init: docker.io/openstackhelm/ironic:ocata-ubuntu_xenial
     ironic_pxe_http: docker.io/nginx:1.13.3
     dep_check: quay.io/stackanetes/kubernetes-entrypoint:v0.3.1
     image_repo_sync: docker.io/docker:17.07.0
@@ -153,7 +154,7 @@ conf:
         - default
     logger_root:
       level: WARNING
-      handlers: null
+      handlers: stdout
     logger_ironic:
       level: INFO
       handlers:
@@ -193,8 +194,10 @@ conf:
       formatter: context
     formatter_context:
       class: oslo_log.formatters.ContextFormatter
+      datefmt: "%Y-%m-%d %H:%M:%S"
     formatter_default:
       format: "%(message)s"
+      datefmt: "%Y-%m-%d %H:%M:%S"
 
 network:
   pxe:
@@ -206,6 +209,7 @@ network:
     neutron_subnet_cidr: 172.24.6.0/24
     neutron_subnet_alloc_start: 172.24.6.100
     neutron_subnet_alloc_end: 172.24.6.200
+    neutron_subnet_dns_nameserver: 10.96.0.10
   api:
     ingress:
       public: true
@@ -219,37 +223,48 @@ network:
       port: 30511
 
 bootstrap:
-  enabled: true
-  ks_user: ironic
-  script: |
-    RELEASE="newton"
-    IMAGE_URL_BASE="http://tarballs.openstack.org/ironic-python-agent/tinyipa/files"
-    IMAGE_INITRAMFS="ironic-agent.initramfs"
-    IMAGE_INITRAMFS_URL="${IMAGE_URL_BASE}/tinyipa-stable-${RELEASE}.gz"
-    IMAGE_KERNEL="ironic-agent.kernel"
-    IMAGE_KERNEL_URL="${IMAGE_URL_BASE}/tinyipa-stable-${RELEASE}.vmlinuz"
-    openstack image show ${IMAGE_INITRAMFS} || (
-      IMAGE_LOC=$(mktemp)
-      curl -L ${IMAGE_INITRAMFS_URL} -o ${IMAGE_LOC}
-      openstack image create \
-        --file ${IMAGE_LOC} \
-        --disk-format ari \
-        --container-format ari \
-        --public \
-        ${IMAGE_INITRAMFS}
-      rm -f ${IMAGE_LOC}
-      )
-    openstack image show ${IMAGE_KERNEL} || (
-      IMAGE_LOC=$(mktemp)
-      curl -L ${IMAGE_KERNEL_URL} -o ${IMAGE_LOC}
-      openstack image create \
-        --file ${IMAGE_LOC} \
-        --disk-format aki \
-        --container-format aki \
-        --public \
-        ${IMAGE_KERNEL}
-      rm -f ${IMAGE_LOC}
-      )
+  image:
+    enabled: true
+    openstack:
+      enabled: true
+      ks_user: ironic
+    script: |
+      RELEASE="ocata"
+      IMAGE_URL_BASE="http://tarballs.openstack.org/ironic-python-agent/tinyipa/files"
+      IMAGE_INITRAMFS="ironic-agent.initramfs"
+      IMAGE_INITRAMFS_URL="${IMAGE_URL_BASE}/tinyipa-stable-${RELEASE}.gz"
+      IMAGE_KERNEL="ironic-agent.kernel"
+      IMAGE_KERNEL_URL="${IMAGE_URL_BASE}/tinyipa-stable-${RELEASE}.vmlinuz"
+      openstack image show ${IMAGE_INITRAMFS} || (
+        IMAGE_LOC=$(mktemp)
+        curl -L ${IMAGE_INITRAMFS_URL} -o ${IMAGE_LOC}
+        openstack image create \
+          --file ${IMAGE_LOC} \
+          --disk-format ari \
+          --container-format ari \
+          --public \
+          ${IMAGE_INITRAMFS}
+        rm -f ${IMAGE_LOC}
+        )
+      openstack image show ${IMAGE_KERNEL} || (
+        IMAGE_LOC=$(mktemp)
+        curl -L ${IMAGE_KERNEL_URL} -o ${IMAGE_LOC}
+        openstack image create \
+          --file ${IMAGE_LOC} \
+          --disk-format aki \
+          --container-format aki \
+          --public \
+          ${IMAGE_KERNEL}
+        rm -f ${IMAGE_LOC}
+        )
+  network:
+    enabled: true
+    openstack:
+      enabled: true
+  object_store:
+    enabled: true
+    openstack:
+      enabled: true
 
 dependencies:
   dynamic:
@@ -300,6 +315,10 @@ dependencies:
           service: baremetal
         - endpoint: internal
           service: oslo_messaging
+    db_drop:
+      services:
+        - endpoint: internal
+          service: oslo_db
     db_init:
       services:
         - endpoint: internal
@@ -394,8 +413,8 @@ endpoints:
         user_domain_name: service
         project_domain_name: service
     hosts:
-      default: keystone-api
-      public: keystone
+      default: keystone
+      internal: keystone-api
     host_fqdn_override:
       default: null
     path:
@@ -478,6 +497,9 @@ endpoints:
       ironic:
         username: ironic
         password: password
+    statefulset:
+      replicas: 2
+      name: rabbitmq-rabbitmq
     hosts:
       default: rabbitmq
     host_fqdn_override:
@@ -544,16 +566,28 @@ pod:
         default: preferredDuringSchedulingIgnoredDuringExecution
       topologyKey:
         default: kubernetes.io/hostname
+      weight:
+        default: 10
   mounts:
     ironic_api:
       init_container: null
       ironic_api:
+        volumeMounts:
+        volumes:
     ironic_conductor:
       init_container: null
       ironic_conductor:
+        volumeMounts:
+        volumes:
     ironic_bootstrap:
       init_container: null
       ironic_bootstrap:
+        volumeMounts:
+        volumes:
+    ironic_db_sync:
+      ironic_db_sync:
+        volumeMounts:
+        volumes:
   replicas:
     api: 1
     conductor: 1
@@ -589,6 +623,13 @@ pod:
         cpu: "2000m"
     jobs:
       bootstrap:
+        requests:
+          memory: "128Mi"
+          cpu: "100m"
+        limits:
+          memory: "1024Mi"
+          cpu: "2000m"
+      db_drop:
         requests:
           memory: "128Mi"
           cpu: "100m"
@@ -652,6 +693,11 @@ pod:
           memory: "1024Mi"
           cpu: "2000m"
 
+network_policy:
+  ironic:
+    ingress:
+      - {}
+
 manifests:
   configmap_bin: true
   configmap_etc: true
@@ -668,6 +714,7 @@ manifests:
   job_manage_cleaning_network: true
   job_rabbit_init: true
   pdb_api: true
+  network_policy: false
   secret_db: true
   secret_keystone: true
   secret_rabbitmq: true

@@ -1,0 +1,97 @@
+---
+# Copyright 2018, SUSE LINUX GmbH.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# For having the full context, this file should be read
+# with the openstack-helm-infra repository, where nodesets
+# and jobs are defined.
+# NOTE(evrardjp): Some jobs and playbooks haven't been
+# migrated to openstack-helm-infra yet.
+- project:
+    templates:
+      - publish-openstack-docs-pti
+    check:
+      jobs:
+        - openstack-helm-lint
+        - openstack-helm-bandit
+        - openstack-helm-cinder
+        - openstack-helm-cinder-pike-ubuntu_xenial:
+            voting: false
+        - openstack-helm-cinder-queens-ubuntu_xenial:
+            voting: false
+        - openstack-helm-cinder-rocky-ubuntu_xenial:
+            voting: false
+        - openstack-helm-cinder-rocky-ubuntu_bionic:
+            voting: false
+        - openstack-helm-cinder-rocky-opensuse_15:
+            voting: false
+        - openstack-helm-compute-kit
+        - openstack-helm-compute-kit-pike-ubuntu_xenial:
+            voting: false
+        - openstack-helm-compute-kit-queens-ubuntu_xenial:
+            voting: false
+        - openstack-helm-compute-kit-rocky-ubuntu_xenial:
+            voting: false
+        - openstack-helm-compute-kit-rocky-ubuntu_bionic:
+            voting: false
+        - openstack-helm-compute-kit-rocky-opensuse_15:
+            voting: false
+        - openstack-helm-horizon
+        - openstack-helm-apparmor:
+            voting: false
+    gate:
+      jobs:
+        - openstack-helm-lint
+        - openstack-helm-cinder
+        - openstack-helm-compute-kit
+    periodic:
+      jobs:
+        # Keystone jobs that are replicated in compute-kit
+        - openstack-helm-keystone
+        - openstack-helm-keystone-pike-ubuntu_xenial
+        - openstack-helm-keystone-queens-ubuntu_xenial
+        - openstack-helm-keystone-rocky-ubuntu_xenial
+        - openstack-helm-keystone-rocky-ubuntu_bionic
+        - openstack-helm-keystone-rocky-opensuse_15
+        # Keystone job that exersizes feature gate
+        - openstack-helm-keystone-ldap
+        # Glance jobs that are replicated in compute-kit
+        - openstack-helm-glance
+        - openstack-helm-glance-pike-ubuntu_xenial
+        - openstack-helm-glance-queens-ubuntu_xenial
+        - openstack-helm-glance-rocky-ubuntu_xenial
+        - openstack-helm-glance-rocky-ubuntu_bionic
+        - openstack-helm-glance-rocky-opensuse_15
+        # Heat jobs that are replicated in compute-kit
+        - openstack-helm-heat
+        - openstack-helm-heat-pike-ubuntu_xenial
+        - openstack-helm-heat-queens-ubuntu_xenial
+        - openstack-helm-heat-rocky-ubuntu_xenial
+        - openstack-helm-heat-rocky-ubuntu_bionic
+        - openstack-helm-heat-rocky-opensuse_15
+        # Unique periodic jobs
+        - openstack-helm-multinode-temp-ubuntu
+        - openstack-helm-ironic-ubuntu
+        - openstack-helm-armada-deploy
+        - openstack-helm-armada-update-uuid
+        - openstack-helm-armada-update-passwords
+    experimental:
+      jobs:
+        # - openstack-helm-multinode-temp-centos
+        # # NOTE(lamt): Make fedora job experimental until issues with gates are resolved.
+        # - openstack-helm-multinode-temp-fedora
+        # - openstack-helm-multinode-temp-tempest
+        - openstack-helm-armada-deploy
+        - openstack-helm-armada-update-uuid
+        - openstack-helm-armada-update-passwords

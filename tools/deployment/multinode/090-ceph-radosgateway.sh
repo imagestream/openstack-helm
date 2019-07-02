@@ -24,27 +24,53 @@ endpoints:
   identity:
     namespace: openstack
   object_store:
-    namespace: ceph
+    namespace: openstack
   ceph_mon:
     namespace: ceph
 network:
   public: ${CEPH_PUBLIC_NETWORK}
   cluster: ${CEPH_CLUSTER_NETWORK}
 deployment:
-  storage_secrets: false
-  ceph: false
-  rbd_provisioner: false
-  cephfs_provisioner: false
-  client_secrets: false
+  ceph: true
   rgw_keystone_user_and_endpoints: true
 bootstrap:
   enabled: false
 conf:
   rgw_ks:
     enabled: true
+network_policy:
+  ceph:
+    ingress:
+      - from:
+        - podSelector:
+            matchLabels:
+              application: glance
+        - podSelector:
+            matchLabels:
+              application: cinder
+        - podSelector:
+            matchLabels:
+              application: libvirt
+        - podSelector:
+            matchLabels:
+              application: nova
+        - podSelector:
+            matchLabels:
+              application: ceph
+        - podSelector:
+            matchLabels:
+              application: ingress
+        ports:
+        - protocol: TCP
+          port: 8088
+manifests:
+  network_policy: true
 EOF
-helm upgrade --install radosgw-openstack ./ceph-client \
+
+: ${OSH_INFRA_PATH:="../openstack-helm-infra"}
+helm upgrade --install radosgw-openstack ${OSH_INFRA_PATH}/ceph-rgw \
   --namespace=openstack \
+  --set manifests.network_policy=true \
   --values=/tmp/radosgw-openstack.yaml \
   ${OSH_EXTRA_HELM_ARGS} \
   ${OSH_EXTRA_HELM_ARGS_HEAT}
@@ -54,8 +80,7 @@ helm upgrade --install radosgw-openstack ./ceph-client \
 
 #NOTE: Validate Deployment info
 helm status radosgw-openstack
+
+#NOTE: Run Tests
 export OS_CLOUD=openstack_helm
-openstack service list
-openstack container create 'mygreatcontainer'
-curl -L -o /tmp/important-file.jpg https://imgflip.com/s/meme/Cute-Cat.jpg
-openstack object create --name 'superimportantfile.jpg' 'mygreatcontainer' /tmp/important-file.jpg
+helm test radosgw-openstack

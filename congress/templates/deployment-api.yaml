@@ -24,6 +24,8 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: congress-api
+  annotations:
+    {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" }}
   labels:
 {{ tuple $envAll "congress" "api" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 4 }}
 spec:
@@ -36,6 +38,10 @@ spec:
     metadata:
       labels:
 {{ tuple $envAll "congress" "api" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+      annotations:
+{{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+        configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
+        configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
     spec:
       serviceAccountName: {{ $serviceAccountName }}
       affinity:
@@ -59,6 +65,8 @@ spec:
             tcpSocket:
               port: {{ tuple "policy" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
           volumeMounts:
+            - name: pod-tmp
+              mountPath: /tmp
             - name: etccongress
               mountPath: /etc/congress
             - name: congress-bin
@@ -69,10 +77,12 @@ spec:
               mountPath: /etc/congress/congress.conf
               subPath: congress.conf
               readOnly: true
+            {{- if .Values.conf.congress.DEFAULT.log_config_append }}
             - name: congress-etc
               mountPath: {{ .Values.conf.congress.DEFAULT.log_config_append }}
               subPath: {{ base .Values.conf.congress.DEFAULT.log_config_append }}
               readOnly: true
+            {{- end }}
             - name: congress-etc
               mountPath: /etc/congress/api-paste.ini
               subPath: api-paste.ini
@@ -82,6 +92,8 @@ spec:
               subPath: policy.json
               readOnly: true
       volumes:
+        - name: pod-tmp
+          emptyDir: {}
         - name: etccongress
           emptyDir: {}
         - name: congress-bin
@@ -89,7 +101,7 @@ spec:
             name: congress-bin
             defaultMode: 0777
         - name: congress-etc
-          configMap:
-            name: congress-etc
+          secret:
+            secretName: congress-etc
             defaultMode: 0444
 {{ end }}

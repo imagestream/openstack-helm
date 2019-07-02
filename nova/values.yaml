@@ -61,33 +61,33 @@ labels:
 images:
   pull_policy: IfNotPresent
   tags:
-    bootstrap: docker.io/openstackhelm/heat:newton
-    db_drop: docker.io/openstackhelm/heat:newton
-    db_init: docker.io/openstackhelm/heat:newton
+    bootstrap: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
+    db_drop: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
+    db_init: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
     dep_check: 'quay.io/stackanetes/kubernetes-entrypoint:v0.3.1'
     rabbit_init: docker.io/rabbitmq:3.7-management
-    ks_user: docker.io/openstackhelm/heat:newton
-    ks_service: docker.io/openstackhelm/heat:newton
-    ks_endpoints: docker.io/openstackhelm/heat:newton
-    nova_api: docker.io/openstackhelm/nova:newton
-    nova_cell_setup: docker.io/openstackhelm/nova:newton
-    nova_cell_setup_init: docker.io/openstackhelm/heat:newton
-    nova_compute: docker.io/openstackhelm/nova:newton
-    nova_compute_ironic: 'docker.io/kolla/ubuntu-source-nova-compute-ironic:3.0.3'
-    nova_compute_ssh: docker.io/openstackhelm/nova:newton
-    nova_conductor: docker.io/openstackhelm/nova:newton
-    nova_consoleauth: docker.io/openstackhelm/nova:newton
-    nova_db_sync: docker.io/openstackhelm/nova:newton
-    nova_novncproxy: docker.io/openstackhelm/nova:newton
-    nova_novncproxy_assets: 'docker.io/kolla/ubuntu-source-nova-novncproxy:3.0.3'
-    nova_placement: docker.io/openstackhelm/nova:newton
-    nova_scheduler: docker.io/openstackhelm/nova:newton
+    ks_user: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
+    ks_service: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
+    ks_endpoints: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
+    nova_api: docker.io/openstackhelm/nova:ocata-ubuntu_xenial
+    nova_cell_setup: docker.io/openstackhelm/nova:ocata-ubuntu_xenial
+    nova_cell_setup_init: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
+    nova_compute: docker.io/openstackhelm/nova:ocata-ubuntu_xenial
+    nova_compute_ironic: 'docker.io/kolla/ubuntu-source-nova-compute-ironic:ocata'
+    nova_compute_ssh: docker.io/openstackhelm/nova:ocata-ubuntu_xenial
+    nova_conductor: docker.io/openstackhelm/nova:ocata-ubuntu_xenial
+    nova_consoleauth: docker.io/openstackhelm/nova:ocata-ubuntu_xenial
+    nova_db_sync: docker.io/openstackhelm/nova:ocata-ubuntu_xenial
+    nova_novncproxy: docker.io/openstackhelm/nova:ocata-ubuntu_xenial
+    nova_novncproxy_assets: 'docker.io/kolla/ubuntu-source-nova-novncproxy:ocata'
+    nova_placement: docker.io/openstackhelm/nova:ocata-ubuntu_xenial
+    nova_scheduler: docker.io/openstackhelm/nova:ocata-ubuntu_xenial
     # NOTE(portdirect): we simply use the ceph config helper here,
     # as it has both oscli and jq.
     nova_service_cleaner: 'docker.io/port/ceph-config-helper:v1.10.3'
-    nova_spiceproxy: docker.io/openstackhelm/nova:newton
-    nova_spiceproxy_assets: 'docker.io/kolla/ubuntu-source-nova-spicehtml5proxy:3.0.3'
-    test: 'docker.io/kolla/ubuntu-source-rally:4.0.0'
+    nova_spiceproxy: docker.io/openstackhelm/nova:ocata-ubuntu_xenial
+    nova_spiceproxy_assets: 'docker.io/kolla/ubuntu-source-nova-spicehtml5proxy:ocata'
+    test: docker.io/xrally/xrally-openstack:1.3.0
     image_repo_sync: docker.io/docker:17.07.0
   local_registry:
     active: false
@@ -100,11 +100,13 @@ jobs:
   # TODO(portdirect): Add a post-start action to nova compute pods that registers themselves.
   cell_setup:
     cron: "0 */1 * * *"
+    starting_deadline: 600
     history:
       success: 3
       failed: 1
   service_cleaner:
     cron: "0 */1 * * *"
+    starting_deadline: 600
     history:
       success: 3
       failed: 1
@@ -209,6 +211,9 @@ network:
   ssh:
     name: "nova-ssh"
     port: 8022
+  sshd:
+    enabled: false
+    from_subnet: 0.0.0.0/24
 
 dependencies:
   dynamic:
@@ -255,8 +260,19 @@ dependencies:
           service: oslo_db
         - endpoint: internal
           service: identity
-        - endpoint: public
-          service: compute_metadata
+    api_metadata:
+      jobs:
+        - nova-db-sync
+        - nova-ks-user
+        - nova-ks-endpoints
+        - nova-rabbit-init
+      services:
+        - endpoint: internal
+          service: oslo_messaging
+        - endpoint: internal
+          service: oslo_db
+        - endpoint: internal
+          service: identity
     bootstrap:
       services:
         - endpoint: internal
@@ -312,6 +328,8 @@ dependencies:
           service: compute
         - endpoint: internal
           service: network
+        - endpoint: internal
+          service: compute_metadata
     compute_ironic:
       jobs:
         - nova-db-sync
@@ -391,6 +409,12 @@ dependencies:
       services:
         - endpoint: internal
           service: oslo_db
+    spiceproxy:
+      jobs:
+        - nova-db-sync
+      services:
+        - endpoint: internal
+          service: oslo_db
     scheduler:
       jobs:
         - nova-db-sync
@@ -412,6 +436,8 @@ dependencies:
           service: compute
         - endpoint: internal
           service: network
+        - endpoint: internal
+          service: compute_metadata
     image_repo_sync:
       services:
         - endpoint: internal
@@ -443,7 +469,86 @@ ssh:
     - ecdsa
     - ed25519
 
+ceph_client:
+  configmap: ceph-etc
+  user_secret_name: pvc-ceph-client-key
+
 conf:
+  security: |
+    #
+    # Disable access to the entire file system except for the directories that
+    # are explicitly allowed later.
+    #
+    # This currently breaks the configurations that come with some web application
+    # Debian packages.
+    #
+    #<Directory />
+    #   AllowOverride None
+    #   Require all denied
+    #</Directory>
+
+    # Changing the following options will not really affect the security of the
+    # server, but might make attacks slightly more difficult in some cases.
+
+    #
+    # ServerTokens
+    # This directive configures what you return as the Server HTTP response
+    # Header. The default is 'Full' which sends information about the OS-Type
+    # and compiled in modules.
+    # Set to one of:  Full | OS | Minimal | Minor | Major | Prod
+    # where Full conveys the most information, and Prod the least.
+    ServerTokens Prod
+
+    #
+    # Optionally add a line containing the server version and virtual host
+    # name to server-generated pages (internal error documents, FTP directory
+    # listings, mod_status and mod_info output etc., but not CGI generated
+    # documents or custom error documents).
+    # Set to "EMail" to also include a mailto: link to the ServerAdmin.
+    # Set to one of:  On | Off | EMail
+    ServerSignature Off
+
+    #
+    # Allow TRACE method
+    #
+    # Set to "extended" to also reflect the request body (only for testing and
+    # diagnostic purposes).
+    #
+    # Set to one of:  On | Off | extended
+    TraceEnable Off
+
+    #
+    # Forbid access to version control directories
+    #
+    # If you use version control systems in your document root, you should
+    # probably deny access to their directories. For example, for subversion:
+    #
+    #<DirectoryMatch "/\.svn">
+    #   Require all denied
+    #</DirectoryMatch>
+
+    #
+    # Setting this header will prevent MSIE from interpreting files as something
+    # else than declared by the content type in the HTTP headers.
+    # Requires mod_headers to be enabled.
+    #
+    #Header set X-Content-Type-Options: "nosniff"
+
+    #
+    # Setting this header will prevent other sites from embedding pages from this
+    # site as frames. This defends against clickjacking attacks.
+    # Requires mod_headers to be enabled.
+    #
+    #Header set X-Frame-Options: "sameorigin"
+  software:
+    apache2:
+      binary: apache2
+      start_parameters: -DFOREGROUND
+      conf_dir: /etc/apache2/conf-enabled
+      site_dir: /etc/apache2/sites-enable
+      mods_dir: /etc/apache2/mods-available
+      a2enmod: null
+      a2dismod: null
   ceph:
     enabled: true
     admin_keyring: null
@@ -451,9 +556,13 @@ conf:
       user: "cinder"
       keyring: null
       secret_uuid: 457eb676-33da-42ec-9a8c-9293d545c337
-  ssh:
-    override:
-    append:
+  ssh: |
+    Host *
+      StrictHostKeyChecking no
+      UserKnownHostsFile /dev/null
+      Port {{ .Values.network.ssh.port }}
+  ssh_private: 'null'
+  ssh_public: 'null'
   rally_tests:
     run_tempest: false
     tests:
@@ -575,14 +684,6 @@ conf:
           sla:
             failure_rate:
               max: 0
-      NovaHosts.list_hosts:
-        - runner:
-            concurrency: 1
-            times: 1
-            type: constant
-          sla:
-            failure_rate:
-              max: 0
       NovaHypervisors.list_and_get_hypervisors:
         - args:
             detailed: true
@@ -632,16 +733,6 @@ conf:
           sla:
             failure_rate:
               max: 0
-      NovaImages.list_images:
-        - args:
-            detailed: true
-          runner:
-            concurrency: 1
-            times: 1
-            type: constant
-          sla:
-            failure_rate:
-              max: 0
       NovaKeypair.create_and_delete_keypair:
         - runner:
             concurrency: 1
@@ -652,38 +743,6 @@ conf:
               max: 0
       NovaKeypair.create_and_list_keypairs:
         - runner:
-            concurrency: 1
-            times: 1
-            type: constant
-          sla:
-            failure_rate:
-              max: 0
-      NovaSecGroup.create_and_delete_secgroups:
-        - args:
-            rules_per_security_group: 1
-            security_group_count: 1
-          runner:
-            concurrency: 1
-            times: 1
-            type: constant
-          sla:
-            failure_rate:
-              max: 0
-      NovaSecGroup.create_and_list_secgroups:
-        - args:
-            rules_per_security_group: 1
-            security_group_count: 1
-          runner:
-            concurrency: 1
-            times: 1
-            type: constant
-          sla:
-            failure_rate:
-              max: 0
-      NovaSecGroup.create_and_update_secgroups:
-        - args:
-            security_group_count: 1
-          runner:
             concurrency: 1
             times: 1
             type: constant
@@ -727,11 +786,11 @@ conf:
     composite:openstack_compute_api_v21:
       use: call:nova.api.auth:pipeline_factory_v21
       noauth2: cors http_proxy_to_wsgi compute_req_id faultwrap sizelimit noauth2 osapi_compute_app_v21
-      keystone: cors http_proxy_to_wsgi compute_req_id faultwrap sizelimit authtoken keystonecontext osapi_compute_app_v21
+      keystone: cors http_proxy_to_wsgi compute_req_id faultwrap sizelimit authtoken audit keystonecontext osapi_compute_app_v21
     composite:openstack_compute_api_v21_legacy_v2_compatible:
       use: call:nova.api.auth:pipeline_factory_v21
       noauth2: cors http_proxy_to_wsgi compute_req_id faultwrap sizelimit noauth2 legacy_v2_compatible osapi_compute_app_v21
-      keystone: cors http_proxy_to_wsgi compute_req_id faultwrap sizelimit authtoken keystonecontext legacy_v2_compatible osapi_compute_app_v21
+      keystone: cors http_proxy_to_wsgi compute_req_id faultwrap sizelimit authtoken audit keystonecontext legacy_v2_compatible osapi_compute_app_v21
     filter:request_id:
       paste.filter_factory: oslo_middleware:RequestId.factory
     filter:compute_req_id:
@@ -759,6 +818,9 @@ conf:
       paste.filter_factory: nova.api.auth:NovaKeystoneContext.factory
     filter:authtoken:
       paste.filter_factory: keystonemiddleware.auth_token:filter_factory
+    filter:audit:
+      paste.filter_factory: keystonemiddleware.audit:filter_factory
+      audit_map_file: /etc/nova/api_audit_map.conf
   policy:
     os_compute_api:os-admin-actions:discoverable: "@"
     os_compute_api:os-admin-actions:reset_state: rule:admin_api
@@ -1022,6 +1084,72 @@ conf:
     Defaults !requiretty
     Defaults secure_path="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/snap/bin:/var/lib/openstack/bin:/var/lib/kolla/venv/bin"
     nova ALL = (root) NOPASSWD: /var/lib/kolla/venv/bin/nova-rootwrap /etc/nova/rootwrap.conf *, /var/lib/openstack/bin/nova-rootwrap /etc/nova/rootwrap.conf *
+  api_audit_map:
+    DEFAULT:
+      target_endpoint_type: None
+    custom_actions:
+      enable: enable
+      disable: disable
+      delete: delete
+      startup: start/startup
+      shutdown: stop/shutdown
+      reboot: start/reboot
+      os-migrations/get: read
+      os-server-password/post: update
+    path_keywords:
+      add: None
+      action: None
+      enable: None
+      disable: None
+      configure-project: None
+      defaults: None
+      delete: None
+      detail: None
+      diagnostics: None
+      entries: entry
+      extensions: alias
+      flavors: flavor
+      images: image
+      ips: label
+      limits: None
+      metadata: key
+      os-agents: os-agent
+      os-aggregates: os-aggregate
+      os-availability-zone: None
+      os-certificates: None
+      os-cloudpipe: None
+      os-fixed-ips: ip
+      os-extra_specs: key
+      os-flavor-access: None
+      os-floating-ip-dns: domain
+      os-floating-ips-bulk: host
+      os-floating-ip-pools: None
+      os-floating-ips: floating-ip
+      os-hosts: host
+      os-hypervisors: hypervisor
+      os-instance-actions: instance-action
+      os-keypairs: keypair
+      os-migrations: None
+      os-networks: network
+      os-quota-sets: tenant
+      os-security-groups: security_group
+      os-security-group-rules: rule
+      os-server-password: None
+      os-services: None
+      os-simple-tenant-usage: tenant
+      os-virtual-interfaces: None
+      os-volume_attachments: attachment
+      os-volumes_boot: None
+      os-volumes: volume
+      os-volume-types: volume-type
+      os-snapshots: snapshot
+      reboot: None
+      servers: server
+      shutdown: None
+      startup: None
+      statistics: None
+    service_endpoints:
+      compute: service/compute
   rootwrap: |
     # Configuration for nova-rootwrap
     # This file should be owned by (and only-writeable by) the root user
@@ -1050,9 +1178,41 @@ conf:
     # INFO means log all usage
     # ERROR means only log unsuccessful attempts
     syslog_log_level=ERROR
-  wsgi_placement:
-    override:
-    append:
+  wsgi_placement: |
+    Listen 0.0.0.0:{{ tuple "placement" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
+
+    LogFormat "%h %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\"" combined
+    LogFormat "%{X-Forwarded-For}i %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\"" proxy
+
+    SetEnvIf X-Forwarded-For "^.*\..*\..*\..*" forwarded
+    CustomLog /dev/stdout combined env=!forwarded
+    CustomLog /dev/stdout proxy env=forwarded
+
+    <VirtualHost *:{{ tuple "placement" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}>
+        WSGIDaemonProcess placement-api processes=4 threads=1 user=nova group=nova display-name=%{GROUP}
+        WSGIProcessGroup placement-api
+        WSGIScriptAlias / /var/www/cgi-bin/nova/nova-placement-api
+        WSGIApplicationGroup %{GLOBAL}
+        WSGIPassAuthorization On
+        <IfVersion >= 2.4>
+          ErrorLogFormat "%{cu}t %M"
+        </IfVersion>
+        ErrorLog /dev/stdout
+
+        SetEnvIf X-Forwarded-For "^.*\..*\..*\..*" forwarded
+        CustomLog /dev/stdout combined env=!forwarded
+        CustomLog /dev/stdout proxy env=forwarded
+    </VirtualHost>
+
+    Alias /placement /var/www/cgi-bin/nova/nova-placement-api
+    <Location /placement>
+        SetHandler wsgi-script
+        Options +ExecCGI
+
+        WSGIProcessGroup placement-api
+        WSGIApplicationGroup %{GLOBAL}
+        WSGIPassAuthorization On
+    </Location>
   rootwrap_filters:
     api_metadata:
       pods:
@@ -1437,6 +1597,14 @@ conf:
     # Get the IP address to be used as the target for live migration traffic using interface name.
     # If this option is set to None, the hostname of the migration target compute node will be used.
     live_migration_interface:
+  hypervisor:
+    # my_ip can be set automatically through this interface name.
+    host_interface:
+  # This list is the keys to exclude from the config file ingested by nova-compute
+  nova_compute_redactions:
+    - database
+    - api_database
+    - cell0_database
   nova:
     DEFAULT:
       log_config_append: /etc/nova/logging.conf
@@ -1454,7 +1622,6 @@ conf:
       use_neutron: true
       firewall_driver: nova.virt.firewall.NoopFirewallDriver
       linuxnet_interface_driver: openvswitch
-      allow_resize_to_same_host: true
       compute_driver: libvirt.LibvirtDriver
       my_ip: 0.0.0.0
       instance_usage_audit: True
@@ -1512,11 +1679,13 @@ conf:
       compute: auto
     cache:
       enabled: true
-      backend: oslo_cache.memcache_pool
+      backend: dogpile.cache.memcached
     wsgi:
       api_paste_config: /etc/nova/api-paste.ini
     oslo_messaging_notifications:
       driver: messagingv2
+    oslo_messaging_rabbit:
+      rabbit_ha_queues: true
     placement:
       auth_type: password
       auth_version: v3
@@ -1536,7 +1705,7 @@ conf:
         - default
     logger_root:
       level: WARNING
-      handlers: null
+      handlers: stdout
     logger_nova:
       level: INFO
       handlers:
@@ -1576,8 +1745,10 @@ conf:
       formatter: context
     formatter_context:
       class: oslo_log.formatters.ContextFormatter
+      datefmt: "%Y-%m-%d %H:%M:%S"
     formatter_default:
       format: "%(message)s"
+      datefmt: "%Y-%m-%d %H:%M:%S"
   rabbitmq:
     #NOTE(rk760n): adding rmq policy to mirror messages from notification queues and set expiration time for the ones
     policies:
@@ -1591,7 +1762,7 @@ conf:
           message-ttl: 70000
         priority: 0
         apply-to: all
-        pattern: '(notifications)\.'
+        pattern: '^(?!amq\.).*'
 
 # Names of secrets used by bootstrap and environmental checks
 secrets:
@@ -1699,6 +1870,9 @@ endpoints:
       nova:
         username: nova
         password: password
+    statefulset:
+      replicas: 2
+      name: rabbitmq-rabbitmq
     hosts:
       default: rabbitmq
     host_fqdn_override:
@@ -1774,14 +1948,14 @@ endpoints:
       test:
         role: admin
         region_name: RegionOne
-        username: test
+        username: nova-test
         password: password
         project_name: test
         user_domain_name: service
         project_domain_name: service
     hosts:
-      default: keystone-api
-      public: keystone
+      default: keystone
+      internal: keystone-api
     host_fqdn_override:
       default: null
     path:
@@ -1945,54 +2119,161 @@ endpoints:
         default: 24224
       metrics:
         default: 24220
+  #NOTE(tp6510): these endpoints allow for things like DNS lookups and apiserver access.
+  # They are using to enable the Egress K8s network policy.
+  k8s:
+    port:
+      api:
+        default: 6443
+        internal: 5000
+  default:
+    namespace: default
+  kube_system:
+    namespace: kube-system
+  kube_public:
+    namespace: kube-public
 
 pod:
   user:
     nova:
       uid: 42424
+  security_context:
+    nova:
+      pod:
+        runAsUser: 42424
+      container:
+        nova_compute_init:
+          readOnlyRootFilesystem: true
+          runAsUser: 0
+        ceph_perms:
+          readOnlyRootFilesystem: true
+          runAsUser: 0
+        ceph_admin_keyring_placement:
+          readOnlyRootFilesystem: true
+        ceph_keyring_placement:
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
+        nova_compute_vnc_init:
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
+        nova_compute_spice_init:
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
+        nova_compute:
+          readOnlyRootFilesystem: true
+          privileged: true
+        nova_compute_ssh:
+          readOnlyRootFilesystem: true
+          privileged: true
+        nova_api_metadata_init:
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
+        nova_api:
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
+        nova_osapi:
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
+        nova_conductor:
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
+        nova_consoleauth:
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
+        nova_novncproxy_init:
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
+        nova_novncproxy_init_assests:
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
+        nova_novncproxy:
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
+        nova_scheduler:
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
+        nova_spiceproxy_init:
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
+        nova_spiceproxy_init_assets:
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
+        nova_spiceproxy:
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
   affinity:
     anti:
       type:
         default: preferredDuringSchedulingIgnoredDuringExecution
       topologyKey:
         default: kubernetes.io/hostname
+      weight:
+        default: 10
   mounts:
     nova_compute:
       init_container: null
       nova_compute:
+        volumeMounts:
+        volumes:
     nova_compute_ironic:
       init_container: null
       nova_compute_ironic:
+        volumeMounts:
+        volumes:
     nova_api_metadata:
       init_container: null
       nova_api_metadata:
+        volumeMounts:
+        volumes:
     nova_placement:
       init_container: null
       nova_placement:
+        volumeMounts:
+        volumes:
     nova_api_osapi:
       init_container: null
       nova_api_osapi:
+        volumeMounts:
+        volumes:
     nova_consoleauth:
       init_container: null
       nova_consoleauth:
+        volumeMounts:
+        volumes:
     nova_conductor:
       init_container: null
       nova_conductor:
+        volumeMounts:
+        volumes:
     nova_scheduler:
       init_container: null
       nova_scheduler:
+        volumeMounts:
+        volumes:
     nova_bootstrap:
       init_container: null
       nova_bootstrap:
+        volumeMounts:
+        volumes:
     nova_tests:
       init_container: null
       nova_tests:
+        volumeMounts:
+        volumes:
     nova_novncproxy:
       init_novncproxy: null
       nova_novncproxy:
+        volumeMounts:
+        volumes:
     nova_spiceproxy:
       init_spiceproxy: null
       nova_spiceproxy:
+        volumeMounts:
+        volumes:
+    nova_db_sync:
+      nova_db_sync:
+        volumeMounts:
+        volumes:
   replicas:
     api_metadata: 1
     compute_ironic: 1
@@ -2196,6 +2477,36 @@ pod:
           memory: "1024Mi"
           cpu: "2000m"
 
+network_policy:
+  nova:
+    # TODO(lamt): Need to tighten this ingress for security.
+    ingress:
+      - {}
+    egress:
+      - {}
+      - to:
+        - podSelector:
+            matchLabels:
+              application: ceph
+        - podSelector:
+            matchLabels:
+              application: ingress
+        - podSelector:
+            matchLabels:
+              application: openvswitch
+        - podSelector:
+            matchLabels:
+              application: libvirt
+        - podSelector:
+            matchLabels:
+              application: cinder
+  placement:
+    # TODO(lamt): Need to tighten this ingress for security.
+    ingress:
+      - {}
+    egress:
+      - {}
+
 manifests:
   configmap_bin: true
   configmap_etc: true
@@ -2232,6 +2543,7 @@ manifests:
   pdb_placement: true
   pdb_osapi: true
   pod_rally_test: true
+  network_policy: false
   secret_db_api: true
   secret_db: true
   secret_ingress_tls: true

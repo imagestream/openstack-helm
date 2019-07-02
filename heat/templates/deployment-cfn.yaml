@@ -27,6 +27,8 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: heat-cfn
+  annotations:
+    {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" }}
   labels:
 {{ tuple $envAll "heat" "cfn" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 4 }}
 spec:
@@ -40,10 +42,12 @@ spec:
       labels:
 {{ tuple $envAll "heat" "cfn" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
       annotations:
+{{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
     spec:
       serviceAccountName: {{ $serviceAccountName }}
+{{ dict "envAll" $envAll "application" "heat" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 6 }}
       affinity:
 {{ tuple $envAll "heat" "cfn" | include "helm-toolkit.snippets.kubernetes_pod_anti_affinity" | indent 8 }}
       nodeSelector:
@@ -55,8 +59,7 @@ spec:
         - name: heat-cfn
 {{ tuple $envAll "heat_cfn" | include "helm-toolkit.snippets.image" | indent 10 }}
 {{ tuple $envAll $envAll.Values.pod.resources.cfn | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
-          securityContext:
-            runAsUser: {{ .Values.pod.user.heat.uid }}
+{{ dict "envAll" $envAll "application" "heat" "container" "heat_cfn" | include "helm-toolkit.snippets.kubernetes_container_security_context" | indent 10 }}
           command:
             - /tmp/heat-cfn.sh
             - start
@@ -72,7 +75,13 @@ spec:
           readinessProbe:
             tcpSocket:
               port: {{ tuple "cloudformation" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
+          livenessProbe:
+            tcpSocket:
+              port: {{ tuple "cloudformation" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
+            initialDelaySeconds: 30
           volumeMounts:
+            - name: pod-tmp
+              mountPath: /tmp
             - name: pod-etc-heat
               mountPath: /etc/heat
             - name: heat-bin
@@ -83,10 +92,12 @@ spec:
               mountPath: /etc/heat/heat.conf
               subPath: heat.conf
               readOnly: true
+            {{ if .Values.conf.heat.DEFAULT.log_config_append }}
             - name: heat-etc
               mountPath: {{ .Values.conf.heat.DEFAULT.log_config_append }}
               subPath: {{ base .Values.conf.heat.DEFAULT.log_config_append }}
               readOnly: true
+            {{ end }}
             - name: heat-etc
               mountPath: /etc/heat/api-paste.ini
               subPath: api-paste.ini
@@ -95,8 +106,14 @@ spec:
               mountPath: /etc/heat/policy.json
               subPath: policy.json
               readOnly: true
+            - name: heat-etc
+              mountPath: /etc/heat/api_audit_map.conf
+              subPath: api_audit_map.conf
+              readOnly: true
 {{ if $mounts_heat_cfn.volumeMounts }}{{ toYaml $mounts_heat_cfn.volumeMounts | indent 12 }}{{ end }}
       volumes:
+        - name: pod-tmp
+          emptyDir: {}
         - name: pod-etc-heat
           emptyDir: {}
         - name: heat-bin
@@ -104,8 +121,8 @@ spec:
             name: heat-bin
             defaultMode: 0555
         - name: heat-etc
-          configMap:
-            name: heat-etc
+          secret:
+            secretName: heat-etc
             defaultMode: 0444
 {{ if $mounts_heat_cfn.volumes }}{{ toYaml $mounts_heat_cfn.volumes | indent 8 }}{{ end }}
 {{- end }}

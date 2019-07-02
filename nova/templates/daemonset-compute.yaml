@@ -29,6 +29,8 @@ apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: nova-compute
+  annotations:
+    {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" }}
   labels:
 {{ tuple $envAll .Chart.Name $daemonset | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 4 }}
 spec:
@@ -41,9 +43,12 @@ spec:
       labels:
 {{ tuple $envAll .Chart.Name $daemonset | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
       annotations:
+{{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
+{{ dict "envAll" $envAll "podName" "nova-compute-default" "containerNames" (list "nova-compute-default") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
     spec:
       serviceAccountName: {{ $serviceAccountName }}
+{{ dict "envAll" $envAll "application" "nova" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 6 }}
       nodeSelector:
         {{ .Values.labels.agent.compute.node_selector_key }}: {{ .Values.labels.agent.compute.node_selector_value }}
       hostNetwork: true
@@ -53,14 +58,15 @@ spec:
 {{ tuple $envAll "pod_dependency" $mounts_nova_compute_init | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
         - name: nova-compute-init
 {{ tuple $envAll "nova_compute" | include "helm-toolkit.snippets.image" | indent 10 }}
-          securityContext:
-            runAsUser: 0
+{{ dict "envAll" $envAll "application" "nova" "container" "nova_compute_init" | include "helm-toolkit.snippets.kubernetes_container_security_context" | indent 10 }}
           env:
             - name: NOVA_USER_UID
               value: "{{ .Values.pod.user.nova.uid }}"
           command:
             - /tmp/nova-compute-init.sh
           volumeMounts:
+            - name: pod-tmp
+              mountPath: /tmp
             - name: nova-bin
               mountPath: /tmp/nova-compute-init.sh
               subPath: nova-compute-init.sh
@@ -70,14 +76,28 @@ spec:
             - name: pod-shared
               mountPath: /tmp/pod-shared
         {{- if .Values.conf.ceph.enabled }}
+        - name: ceph-perms
+{{ tuple $envAll "nova_compute" | include "helm-toolkit.snippets.image" | indent 10 }}
+{{ dict "envAll" $envAll "application" "nova" "container" "ceph_perms" | include "helm-toolkit.snippets.kubernetes_container_security_context" | indent 10 }}
+          command:
+            - chown
+            - -R
+            - "nova:"
+            - /etc/ceph
+          volumeMounts:
+            - name: pod-tmp
+              mountPath: /tmp
+            - name: etcceph
+              mountPath: /etc/ceph
         {{- if empty .Values.conf.ceph.cinder.keyring }}
         - name: ceph-admin-keyring-placement
 {{ tuple $envAll "nova_compute" | include "helm-toolkit.snippets.image" | indent 10 }}
-          securityContext:
-            runAsUser: 0
+{{ dict "envAll" $envAll "application" "nova" "container" "ceph_admin_keyring_placement" | include "helm-toolkit.snippets.kubernetes_container_security_context" | indent 10 }}
           command:
             - /tmp/ceph-admin-keyring.sh
           volumeMounts:
+            - name: pod-tmp
+              mountPath: /tmp
             - name: etcceph
               mountPath: /etc/ceph
             - name: nova-bin
@@ -93,8 +113,7 @@ spec:
         {{ end }}
         - name: ceph-keyring-placement
 {{ tuple $envAll "nova_compute" | include "helm-toolkit.snippets.image" | indent 10 }}
-          securityContext:
-            runAsUser: {{ .Values.pod.user.nova.uid }}
+{{ dict "envAll" $envAll "application" "nova" "container" "ceph_keyring_placement" | include "helm-toolkit.snippets.kubernetes_container_security_context" | indent 10 }}
           env:
             - name: CEPH_CINDER_USER
               value: "{{ .Values.conf.ceph.cinder.user }}"
@@ -107,13 +126,15 @@ spec:
           command:
             - /tmp/ceph-keyring.sh
           volumeMounts:
+            - name: pod-tmp
+              mountPath: /tmp
             - name: etcceph
               mountPath: /etc/ceph
             - name: nova-bin
               mountPath: /tmp/ceph-keyring.sh
               subPath: ceph-keyring.sh
             - name: ceph-etc
-              mountPath: /etc/ceph/ceph.conf
+              mountPath: /etc/ceph/ceph.conf.template
               subPath: ceph.conf
               readOnly: true
         {{ end }}
@@ -121,11 +142,12 @@ spec:
         - name: nova-compute-vnc-init
 {{ tuple $envAll "nova_compute" | include "helm-toolkit.snippets.image" | indent 10 }}
 {{ tuple $envAll $envAll.Values.pod.resources.compute | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
-          securityContext:
-            runAsUser: {{ .Values.pod.user.nova.uid }}
+{{ dict "envAll" $envAll "application" "nova" "container" "nova_compute_vnc_init" | include "helm-toolkit.snippets.kubernetes_container_security_context" | indent 10 }}
           command:
             - /tmp/nova-console-compute-init.sh
           volumeMounts:
+            - name: pod-tmp
+              mountPath: /tmp
             - name: nova-bin
               mountPath: /tmp/nova-console-compute-init.sh
               subPath: nova-console-compute-init.sh
@@ -137,11 +159,12 @@ spec:
         - name: nova-compute-spice-init
 {{ tuple $envAll "nova_compute" | include "helm-toolkit.snippets.image" | indent 10 }}
 {{ tuple $envAll $envAll.Values.pod.resources.compute | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
-          securityContext:
-            runAsUser: {{ .Values.pod.user.nova.uid }}
+{{ dict "envAll" $envAll "application" "nova" "container" "nova_compute_spice_init" | include "helm-toolkit.snippets.kubernetes_container_security_context" | indent 10 }}
           command:
             - /tmp/nova-console-compute-init.sh
           volumeMounts:
+            - name: pod-tmp
+              mountPath: /tmp
             - name: nova-bin
               mountPath: /tmp/nova-console-compute-init.sh
               subPath: nova-console-compute-init.sh
@@ -153,8 +176,8 @@ spec:
         - name: nova-compute
 {{ tuple $envAll "nova_compute" | include "helm-toolkit.snippets.image" | indent 10 }}
 {{ tuple $envAll $envAll.Values.pod.resources.compute | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
+{{ dict "envAll" $envAll "application" "nova_compute" "container" "nova_compute" | include "helm-toolkit.snippets.kubernetes_container_security_context" | indent 10 }}
           securityContext:
-            runAsUser: {{ .Values.pod.user.nova.uid }}
             privileged: true
           {{- if .Values.conf.ceph.enabled }}
           env:
@@ -167,24 +190,54 @@ spec:
             - name: LIBVIRT_CEPH_SECRET_UUID
               value: "{{ .Values.conf.ceph.secret_uuid }}"
           {{ end }}
+          readinessProbe:
+            exec:
+              command:
+                - python
+                - /tmp/health-probe.py
+                - --config-file
+                - /etc/nova/nova.conf
+                - --service-queue-name
+                - compute
+            initialDelaySeconds: 80
+            periodSeconds: 90
+            timeoutSeconds: 70
+          livenessProbe:
+            exec:
+              command:
+                - python
+                - /tmp/health-probe.py
+                - --config-file
+                - /etc/nova/nova.conf
+                - --service-queue-name
+                - compute
+                - --liveness-probe
+            initialDelaySeconds: 120
+            periodSeconds: 90
+            timeoutSeconds: 70
           command:
             - /tmp/nova-compute.sh
           volumeMounts:
+            - name: pod-tmp
+              mountPath: /tmp
             - name: nova-bin
               mountPath: /tmp/nova-compute.sh
               subPath: nova-compute.sh
               readOnly: true
             - name: nova-bin
-              mountPath: /var/lib/kolla/venv/local/lib/python2.7/site-packages/nova/virt/libvirt/driver.py
-              subPath: nova-compute-driver.py
+              mountPath: /tmp/health-probe.py
+              subPath: health-probe.py
+              readOnly: true
             - name: nova-etc
               mountPath: /etc/nova/nova.conf
-              subPath: nova.conf
+              subPath: nova-compute.conf
               readOnly: true
+            {{- if .Values.conf.nova.DEFAULT.log_config_append }}
             - name: nova-etc
               mountPath: {{ .Values.conf.nova.DEFAULT.log_config_append }}
               subPath: {{ base .Values.conf.nova.DEFAULT.log_config_append }}
               readOnly: true
+            {{- end }}
             - name: nova-etc
               mountPath: /etc/nova/api-paste.ini
               subPath: api-paste.ini
@@ -218,14 +271,16 @@ spec:
               mountPath: /root/.ssh/config
               subPath: ssh-config
               readOnly: true
+            - name: nova-ssh
+              mountPath: /root/.ssh/id_rsa
+              subPath: ssh-key-private
             {{- if .Values.conf.ceph.enabled }}
             - name: etcceph
               mountPath: /etc/ceph
-            - name: ceph-etc
-              mountPath: /etc/ceph/ceph.conf
-              subPath: ceph.conf
-              readOnly: true
-            {{- if empty .Values.conf.ceph.cinder.keyring }}
+              {{- if or ( gt .Capabilities.KubeVersion.Major "1" ) ( ge .Capabilities.KubeVersion.Minor "10" ) }}
+              mountPropagation: Bidirectional
+              {{- end }}
+            {{- if and ( empty .Values.conf.ceph.cinder.keyring ) ( empty .Values.conf.ceph.admin_keyring )}}
             - name: ceph-keyring
               mountPath: /tmp/client-keyring
               subPath: key
@@ -249,15 +304,18 @@ spec:
               mountPath: /run
             - name: cgroup
               mountPath: /sys/fs/cgroup
+              readOnly: true
             - name: pod-shared
               mountPath: /tmp/pod-shared
             - name: machine-id
               mountPath: /etc/machine-id
               readOnly: true
 {{ if $mounts_nova_compute.volumeMounts }}{{ toYaml $mounts_nova_compute.volumeMounts | indent 12 }}{{ end }}
+        {{- if .Values.network.sshd.enabled }}
         - name: nova-compute-ssh
 {{ tuple $envAll "nova_compute_ssh" | include "helm-toolkit.snippets.image" | indent 10 }}
 {{ tuple $envAll $envAll.Values.pod.resources.ssh | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
+{{ dict "envAll" $envAll "application" "nova_compute" "container" "nova_compute_ssh" | include "helm-toolkit.snippets.kubernetes_container_security_context" | indent 10 }}
           securityContext:
             privileged: true
           env:
@@ -270,43 +328,50 @@ spec:
           command:
             - /tmp/ssh-start.sh
           volumeMounts:
+            - name: pod-tmp
+              mountPath: /tmp
             - name: varlibnova
               mountPath: /var/lib/nova
             - name: varliblibvirt
               mountPath: /var/lib/libvirt
-            - name: nova-etc
-              mountPath: /root/.ssh/id_rsa
-              subPath: ssh-key-private
-            - name: nova-etc
+            - name: nova-ssh
               mountPath: /root/.ssh/id_rsa.pub
               subPath: ssh-key-public
-            - name: nova-etc
+            - name: nova-ssh
               mountPath: /root/.ssh/authorized_keys
               subPath: ssh-key-public
             - name: nova-bin
               mountPath: /tmp/ssh-start.sh
               subPath: ssh-start.sh
               readOnly: true
+        {{ end }}
       volumes:
+        - name: pod-tmp
+          emptyDir: {}
         - name: nova-bin
           configMap:
             name: nova-bin
             defaultMode: 0555
         - name: nova-etc
-          configMap:
-            name: {{ $configMapName }}
+          secret:
+            secretName: {{ $configMapName }}
             defaultMode: 0444
+        - name: nova-ssh
+          secret:
+            secretName: nova-ssh
+            defaultMode: 0400
         {{- if .Values.conf.ceph.enabled }}
         - name: etcceph
-          emptyDir: {}
+          hostPath:
+            path: /var/lib/openstack-helm/compute/nova
         - name: ceph-etc
           configMap:
-            name: ceph-etc
+            name: {{ .Values.ceph_client.configmap }}
             defaultMode: 0444
-        {{- if empty .Values.conf.ceph.cinder.keyring }}
+        {{- if and ( empty .Values.conf.ceph.cinder.keyring ) ( empty .Values.conf.ceph.admin_keyring ) }}
         - name: ceph-keyring
           secret:
-            secretName: pvc-ceph-client-key
+            secretName: {{ .Values.ceph_client.user_secret_name }}
         {{ end }}
         {{ end }}
         - name: libmodules

@@ -24,6 +24,8 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: congress-policy-engine-dep
+  annotations:
+    {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" }}
   labels:
 {{ tuple $envAll "congress" "policy_engine" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 4 }}
 spec:
@@ -36,6 +38,10 @@ spec:
     metadata:
       labels:
 {{ tuple $envAll "congress" "policy_engine" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+      annotations:
+{{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+        configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
+        configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
     spec:
       serviceAccountName: {{ $serviceAccountName }}
       affinity:
@@ -53,6 +59,8 @@ spec:
             - /tmp/congress-policy-engine.sh
             - start
           volumeMounts:
+            - name: pod-tmp
+              mountPath: /tmp
             - name: etccongress
               mountPath: /etc/congress
             - name: congress-bin
@@ -63,10 +71,12 @@ spec:
               mountPath: /etc/congress/congress.conf
               subPath: congress.conf
               readOnly: true
+            {{- if .Values.conf.congress.DEFAULT.log_config_append }}
             - name: congress-etc
               mountPath: {{ .Values.conf.congress.DEFAULT.log_config_append }}
               subPath: {{ base .Values.conf.congress.DEFAULT.log_config_append }}
               readOnly: true
+            {{- end }}
             - name: congress-etc
               mountPath: /etc/congress/api-paste.ini
               subPath: api-paste.ini
@@ -76,6 +86,8 @@ spec:
               subPath: policy.json
               readOnly: true
       volumes:
+        - name: pod-tmp
+          emptyDir: {}
         - name: etccongress
           emptyDir: {}
         - name: congress-bin
@@ -83,8 +95,8 @@ spec:
             name: congress-bin
             defaultMode: 0555
         - name: congress-etc
-          configMap:
-            name: congress-etc
+          secret:
+            secretName: congress-etc
             defaultMode: 0444
 
 {{ end }}

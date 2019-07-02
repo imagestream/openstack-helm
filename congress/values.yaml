@@ -38,18 +38,18 @@ release_group: null
 
 images:
   tags:
-    congress_api: docker.io/openstackhelm/congress:newton
-    congress_datasource: docker.io/openstackhelm/congress:newton
-    congress_policy_engine: docker.io/openstackhelm/congress:newton
-    db_init: docker.io/openstackhelm/heat:newton
-    congress_db_sync: docker.io/openstackhelm/congress:newton
-    db_drop: docker.io/openstackhelm/heat:newton
+    congress_api: docker.io/openstackhelm/congress:ocata-ubuntu_xenial
+    congress_datasource: docker.io/openstackhelm/congress:ocata-ubuntu_xenial
+    congress_policy_engine: docker.io/openstackhelm/congress:ocata-ubuntu_xenial
+    db_init: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
+    congress_db_sync: docker.io/openstackhelm/congress:ocata-ubuntu_xenial
+    db_drop: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
     rabbit_init: docker.io/rabbitmq:3.7-management
-    ks_user: docker.io/openstackhelm/heat:newton
-    ks_service: docker.io/openstackhelm/heat:newton
-    ks_endpoints: docker.io/openstackhelm/heat:newton
-    congress_ds_create: docker.io/openstackhelm/congress:newton
-    congress_scripted_test: docker.io/openstackhelm/congress:newton
+    ks_user: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
+    ks_service: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
+    ks_endpoints: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
+    congress_ds_create: docker.io/openstackhelm/congress:ocata-ubuntu_xenial
+    congress_scripted_test: docker.io/openstackhelm/congress:ocata-ubuntu_xenial
     dep_check: quay.io/stackanetes/kubernetes-entrypoint:v0.3.1
     image_repo_sync: docker.io/docker:17.07.0
   pull_policy: "IfNotPresent"
@@ -239,8 +239,8 @@ endpoints:
         user_domain_name: service
         project_domain_name: service
     hosts:
-      default: keystone-api
-      public: keystone
+      default: keystone
+      internal: keystone-api
     host_fqdn_override:
       default: null
     path:
@@ -306,6 +306,9 @@ endpoints:
       congress:
         username: congress
         password: password
+    statefulset:
+      replicas: 2
+      name: rabbitmq-rabbitmq
     hosts:
       default: rabbitmq
     host_fqdn_override:
@@ -342,6 +345,11 @@ policy:
     - heat
     - nova
   poll_time: 120
+
+network_policy:
+  congress:
+    ingress:
+      - {}
 
 conf:
   congress:
@@ -381,7 +389,7 @@ conf:
         - default
     logger_root:
       level: WARNING
-      handlers: null
+      handlers: stdout
     logger_congress:
       level: INFO
       handlers:
@@ -421,8 +429,10 @@ conf:
       formatter: context
     formatter_context:
       class: oslo_log.formatters.ContextFormatter
+      datefmt: "%Y-%m-%d %H:%M:%S"
     formatter_default:
       format: "%(message)s"
+      datefmt: "%Y-%m-%d %H:%M:%S"
   paste:
     composite:congress:
       use: egg:Paste#urlmap
@@ -468,6 +478,13 @@ pod:
         default: preferredDuringSchedulingIgnoredDuringExecution
       topologyKey:
         default: kubernetes.io/hostname
+      weight:
+        default: 10
+  mounts:
+    congress_db_sync:
+      congress_db_sync:
+        volumeMounts:
+        volumes:
   replicas:
     api: 1
     policy_engine: 1
@@ -609,6 +626,7 @@ manifests:
   job_ks_endpoints: true
   job_ks_service: true
   job_ks_user: true
+  network_policy: false
   secret_db: true
   secret_keystone: true
   service_api: true

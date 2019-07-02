@@ -27,6 +27,8 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: glance-api
+  annotations:
+    {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" }}
   labels:
 {{ tuple $envAll "glance" "api" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 4 }}
 spec:
@@ -40,10 +42,12 @@ spec:
       labels:
 {{ tuple $envAll "glance" "api" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
       annotations:
+{{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
     spec:
       serviceAccountName: {{ $serviceAccountName }}
+{{ dict "envAll" $envAll "application" "glance" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 6 }}
       affinity:
 {{ tuple $envAll "glance" "api" | include "helm-toolkit.snippets.kubernetes_pod_anti_affinity" | indent 8 }}
       nodeSelector:
@@ -62,19 +66,21 @@ spec:
             - "glance:"
             - {{ .Values.conf.glance.glance_store.filesystem_store_datadir }}
           volumeMounts:
+            - name: pod-tmp
+              mountPath: /tmp
             - name: glance-images
               mountPath: {{ .Values.conf.glance.glance_store.filesystem_store_datadir }}
         {{ if eq .Values.storage "rbd" }}
         - name: ceph-keyring-placement
 {{ tuple $envAll "glance_api" | include "helm-toolkit.snippets.image" | indent 10 }}
-          securityContext:
-            runAsUser: {{ .Values.pod.user.glance.uid }}
           env:
             - name: RBD_STORE_USER
               value: {{ .Values.conf.glance.glance_store.rbd_store_user | quote }}
           command:
             - /tmp/ceph-keyring.sh
           volumeMounts:
+            - name: pod-tmp
+              mountPath: /tmp
             - name: etcceph
               mountPath: /etc/ceph
             - name: glance-bin
@@ -90,8 +96,7 @@ spec:
         - name: glance-api
 {{ tuple $envAll "glance_api" | include "helm-toolkit.snippets.image" | indent 10 }}
 {{ tuple $envAll $envAll.Values.pod.resources.api | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
-          securityContext:
-            runAsUser: {{ .Values.pod.user.glance.uid }}
+{{ dict "envAll" $envAll "application" "glance" "container" "glance_api" | include "helm-toolkit.snippets.kubernetes_container_security_context" | indent 10 }}
           command:
             - /tmp/glance-api.sh
             - start
@@ -107,7 +112,13 @@ spec:
           readinessProbe:
             tcpSocket:
               port: {{ tuple "image" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
+          livenessProbe:
+            tcpSocket:
+              port: {{ tuple "image" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
+            initialDelaySeconds: 30
           volumeMounts:
+            - name: pod-tmp
+              mountPath: /tmp
             - name: etcglance
               mountPath: /etc/glance
             - name: glance-bin
@@ -118,10 +129,12 @@ spec:
               mountPath: /etc/glance/glance-api.conf
               subPath: glance-api.conf
               readOnly: true
+            {{- if .Values.conf.glance.DEFAULT.log_config_append }}
             - name: glance-etc
               mountPath: {{ .Values.conf.glance.DEFAULT.log_config_append }}
               subPath: {{ base .Values.conf.glance.DEFAULT.log_config_append }}
               readOnly: true
+            {{- end }}
             - name: glance-etc
               mountPath: /etc/glance/glance-api-paste.ini
               subPath: glance-api-paste.ini
@@ -129,6 +142,10 @@ spec:
             - name: glance-etc
               mountPath: /etc/glance/policy.json
               subPath: policy.json
+              readOnly: true
+            - name: glance-etc
+              mountPath: /etc/glance/api_audit_map.conf
+              subPath: api_audit_map.conf
               readOnly: true
             - name: glance-etc
               mountPath: {{ .Values.conf.glance.glance_store.swift_store_config_file }}
@@ -150,6 +167,8 @@ spec:
 {{- end }}
 {{ if $mounts_glance_api.volumeMounts }}{{ toYaml $mounts_glance_api.volumeMounts | indent 12 }}{{ end }}
       volumes:
+        - name: pod-tmp
+          emptyDir: {}
         - name: etcglance
           emptyDir: {}
         - name: glance-bin
@@ -157,8 +176,8 @@ spec:
             name: glance-bin
             defaultMode: 0555
         - name: glance-etc
-          configMap:
-            name: glance-etc
+          secret:
+            secretName: glance-etc
             defaultMode: 0444
 {{- if eq .Values.storage "pvc" }}
         - name: glance-images
@@ -173,7 +192,7 @@ spec:
           emptyDir: {}
         - name: ceph-etc
           configMap:
-            name: ceph-etc
+            name: {{ .Values.ceph_client.configmap }}
             defaultMode: 0444
         - name: ceph-keyring
           secret:

@@ -17,7 +17,8 @@
 set -xe
 
 #NOTE: Lint and package chart
-make ceph
+: ${OSH_INFRA_PATH:="../openstack-helm-infra"}
+make -C ${OSH_INFRA_PATH} ceph-rgw
 
 #NOTE: Deploy command
 : ${OSH_EXTRA_HELM_ARGS:=""}
@@ -26,26 +27,52 @@ endpoints:
   identity:
     namespace: openstack
   object_store:
-    namespace: ceph
+    namespace: openstack
   ceph_mon:
     namespace: ceph
 network:
   public: 172.17.0.1/16
   cluster: 172.17.0.1/16
 deployment:
-  storage_secrets: false
-  ceph: false
-  rbd_provisioner: false
-  cephfs_provisioner: false
-  client_secrets: false
+  ceph: true
   rgw_keystone_user_and_endpoints: true
 bootstrap:
   enabled: false
 conf:
   rgw_ks:
     enabled: true
+pod:
+  replicas:
+    rgw: 1
+network_policy:
+  ceph:
+    ingress:
+      - from:
+        - podSelector:
+            matchLabels:
+              application: glance
+        - podSelector:
+            matchLabels:
+              application: cinder
+        - podSelector:
+            matchLabels:
+              application: libvirt
+        - podSelector:
+            matchLabels:
+              application: nova
+        - podSelector:
+            matchLabels:
+              application: ceph
+        - podSelector:
+            matchLabels:
+              application: ingress
+        ports:
+        - protocol: TCP
+          port: 8088
+manifests:
+  network_policy: true
 EOF
-helm upgrade --install radosgw-openstack ./ceph-client \
+helm upgrade --install radosgw-openstack ${OSH_INFRA_PATH}/ceph-rgw \
   --namespace=openstack \
   --values=/tmp/radosgw-openstack.yaml \
   ${OSH_EXTRA_HELM_ARGS} \

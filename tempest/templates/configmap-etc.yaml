@@ -29,32 +29,27 @@ limitations under the License.
 {{- if empty .Values.conf.tempest.auth.admin_domain_name -}}
 {{- $_ := set .Values.conf.tempest.auth "admin_domain_name" .Values.endpoints.identity.auth.admin.user_domain_name -}}
 {{- end -}}
-{{- if empty .Values.conf.tempest.auth.admin_domain_scope -}}
-{{- $_ := set .Values.conf.tempest.auth "admin_domain_scope" .Values.endpoints.identity.auth.admin.user_domain_name -}}
-{{- end -}}
 
 {{- if empty .Values.conf.tempest.identity.uri_v3 -}}
 {{- $_ := tuple "identity" "internal" "api" . | include "helm-toolkit.endpoints.keystone_endpoint_uri_lookup"| set .Values.conf.tempest.identity "uri_v3" -}}
 {{- end -}}
-
 {{- if empty .Values.conf.tempest.identity.region -}}
 {{- $_ := set .Values.conf.tempest.identity "region" .Values.endpoints.identity.auth.admin.region_name -}}
 {{- end -}}
 
 ---
 apiVersion: v1
-kind: ConfigMap
+kind: Secret
 metadata:
   name: tempest-etc
+type: Opaque
 data:
-  tempest.conf: |+
-{{ include "helm-toolkit.utils.to_oslo_conf" .Values.conf.tempest | indent 4 }}
+  tempest.conf: {{ include "helm-toolkit.utils.to_oslo_conf" .Values.conf.tempest | b64enc }}
+  logging.conf: {{ include "helm-toolkit.utils.to_oslo_conf" .Values.conf.tempest_logging | b64enc }}
 {{ if not (empty .Values.conf.blacklist) }}
-  test-blacklist: |+
-{{ include "tempest.utils.to_regex_file" .Values.conf.blacklist | indent 4 }}
+  test-blacklist: {{ include "tempest.utils.to_regex_file" .Values.conf.blacklist | b64enc }}
 {{ end }}
 {{ if not (empty .Values.conf.whitelist) }}
-  test-whitelist: |+
-{{ include "tempest.utils.to_regex_file" .Values.conf.whitelist | indent 4 }}
+  test-whitelist: {{ include "tempest.utils.to_regex_file" .Values.conf.whitelist | b64enc }}
 {{ end }}
 {{- end }}

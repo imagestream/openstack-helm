@@ -27,6 +27,8 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: ironic-conductor
+  annotations:
+    {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" }}
   labels:
 {{ tuple $envAll "ironic" "conductor" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 4 }}
 spec:
@@ -39,6 +41,8 @@ spec:
     metadata:
       labels:
 {{ tuple $envAll "ironic" "conductor" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+      annotations:
+{{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
     spec:
       serviceAccountName: {{ $serviceAccountName }}
       affinity:
@@ -58,6 +62,8 @@ spec:
           command:
             - /tmp/ironic-conductor-pxe-init.sh
           volumeMounts:
+            - name: pod-tmp
+              mountPath: /tmp
             - name: ironic-bin
               mountPath: /tmp/ironic-conductor-pxe-init.sh
               subPath: ironic-conductor-pxe-init.sh
@@ -73,6 +79,8 @@ spec:
           command:
             - /tmp/ironic-conductor-init.sh
           volumeMounts:
+            - name: pod-tmp
+              mountPath: /tmp
             - name: ironic-bin
               mountPath: /tmp/ironic-conductor-init.sh
               subPath: ironic-conductor-init.sh
@@ -88,6 +96,8 @@ spec:
           command:
             - /tmp/ironic-conductor-http-init.sh
           volumeMounts:
+            - name: pod-tmp
+              mountPath: /tmp
             - name: ironic-bin
               mountPath: /tmp/ironic-conductor-http-init.sh
               subPath: ironic-conductor-http-init.sh
@@ -98,6 +108,7 @@ spec:
               readOnly: true
             - name: pod-shared
               mountPath: /tmp/pod-shared
+{{- if and (.Values.bootstrap.object_store.enabled) (.Values.bootstrap.object_store.openstack.enabled) }}
         - name: ironic-retrive-swift-config
 {{ tuple $envAll "ironic_retrive_swift_config" | include "helm-toolkit.snippets.image" | indent 10 }}
 {{ tuple $envAll $envAll.Values.pod.resources.conductor | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
@@ -110,12 +121,16 @@ spec:
           command:
             - /tmp/retreive-swift-config.sh
           volumeMounts:
+            - name: pod-tmp
+              mountPath: /tmp
             - name: ironic-bin
               mountPath: /tmp/retreive-swift-config.sh
               subPath: retreive-swift-config.sh
               readOnly: true
             - name: pod-shared
               mountPath: /tmp/pod-shared
+{{- end }}
+{{- if and (.Values.bootstrap.network.enabled) (.Values.bootstrap.network.openstack.enabled) }}
         - name: ironic-retrive-cleaning-net
 {{ tuple $envAll "ironic_retrive_cleaning_network" | include "helm-toolkit.snippets.image" | indent 10 }}
 {{ tuple $envAll $envAll.Values.pod.resources.conductor | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
@@ -127,12 +142,15 @@ spec:
           command:
             - /tmp/retreive-cleaning-network.sh
           volumeMounts:
+            - name: pod-tmp
+              mountPath: /tmp
             - name: ironic-bin
               mountPath: /tmp/retreive-cleaning-network.sh
               subPath: retreive-cleaning-network.sh
               readOnly: true
             - name: pod-shared
               mountPath: /tmp/pod-shared
+{{- end }}
       containers:
         - name: ironic-conductor
 {{ tuple $envAll "ironic_conductor" | include "helm-toolkit.snippets.image" | indent 10 }}
@@ -142,6 +160,8 @@ spec:
           command:
             - /tmp/ironic-conductor.sh
           volumeMounts:
+            - name: pod-tmp
+              mountPath: /tmp
             - name: ironic-bin
               mountPath: /tmp/ironic-conductor.sh
               subPath: ironic-conductor.sh
@@ -154,10 +174,12 @@ spec:
               mountPath: /etc/ironic/ironic.conf
               subPath: ironic.conf
               readOnly: true
+            {{- if .Values.conf.ironic.DEFAULT.log_config_append }}
             - name: ironic-etc
               mountPath: {{ .Values.conf.ironic.DEFAULT.log_config_append }}
               subPath: {{ base .Values.conf.ironic.DEFAULT.log_config_append }}
               readOnly: true
+            {{- end }}
             - name: ironic-etc
               mountPath: /etc/ironic/policy.json
               subPath: policy.json
@@ -183,6 +205,8 @@ spec:
           command:
             - /tmp/ironic-conductor-pxe.sh
           volumeMounts:
+            - name: pod-tmp
+              mountPath: /tmp
             - name: ironic-bin
               mountPath: /tmp/ironic-conductor-pxe.sh
               subPath: ironic-conductor-pxe.sh
@@ -199,6 +223,8 @@ spec:
           command:
             - /tmp/ironic-conductor-http.sh
           volumeMounts:
+            - name: pod-tmp
+              mountPath: /tmp
             - name: ironic-bin
               mountPath: /tmp/ironic-conductor-http.sh
               subPath: ironic-conductor-http.sh
@@ -208,8 +234,10 @@ spec:
               readOnly: true
             - name: pod-data
               mountPath: /var/lib/openstack-helm
-{{- if $mounts_ironic_conductor.volumeMounts }}{{ toYaml $mounts_ironic_conductor.volumeMounts | indent 12 }}{{ end }}
+{{ if $mounts_ironic_conductor.volumeMounts }}{{ toYaml $mounts_ironic_conductor.volumeMounts | indent 12 }}{{ end }}
       volumes:
+        - name: pod-tmp
+          emptyDir: {}
         - name: pod-shared
           emptyDir: {}
         - name: pod-var-cache-ironic
@@ -219,8 +247,8 @@ spec:
             name: ironic-bin
             defaultMode: 0555
         - name: ironic-etc
-          configMap:
-            name: ironic-etc
+          secret:
+            secretName: ironic-etc
             defaultMode: 0444
         - name: host-var-lib-ironic
           hostPath:
@@ -236,5 +264,5 @@ spec:
             path: /sys
         - name: pod-data
           emptyDir: {}
-{{- if $mounts_ironic_conductor.volumes }}{{ toYaml $mounts_ironic_conductor.volumes | indent 8 }}{{ end }}
+{{ if $mounts_ironic_conductor.volumes }}{{ toYaml $mounts_ironic_conductor.volumes | indent 8 }}{{ end }}
 {{- end }}

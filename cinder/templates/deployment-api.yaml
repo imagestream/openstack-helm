@@ -27,6 +27,8 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: cinder-api
+  annotations:
+    {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" }}
   labels:
 {{ tuple $envAll "cinder" "api" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 4 }}
 spec:
@@ -40,10 +42,12 @@ spec:
       labels:
 {{ tuple $envAll "cinder" "api" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
       annotations:
+{{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
     spec:
       serviceAccountName: {{ $serviceAccountName }}
+{{ dict "envAll" $envAll "application" "cinder" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 6 }}
       affinity:
 {{ tuple $envAll "cinder" "api" | include "helm-toolkit.snippets.kubernetes_pod_anti_affinity" | indent 8 }}
       nodeSelector:
@@ -62,6 +66,8 @@ spec:
             - "cinder:"
             - {{ ( split "://" .Values.conf.cinder.coordination.backend_url )._1 }}
           volumeMounts:
+            - name: pod-tmp
+              mountPath: /tmp
             - name: cinder-coordination
               mountPath: {{ ( split "://" .Values.conf.cinder.coordination.backend_url )._1 }}
         {{ end }}
@@ -69,8 +75,7 @@ spec:
         - name: cinder-api
 {{ tuple $envAll "cinder_api" | include "helm-toolkit.snippets.image" | indent 10 }}
 {{ tuple $envAll $envAll.Values.pod.resources.api | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
-          securityContext:
-            runAsUser: {{ .Values.pod.user.cinder.uid }}
+{{ dict "envAll" $envAll "application" "cinder" "container" "cinder-api" | include "helm-toolkit.snippets.kubernetes_container_security_context" | indent 10 }}
           command:
             - /tmp/cinder-api.sh
             - start
@@ -86,7 +91,17 @@ spec:
           readinessProbe:
             tcpSocket:
               port: {{ tuple "volume" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
+          livenessProbe:
+            tcpSocket:
+              port: {{ tuple "volume" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
+            initialDelaySeconds: 30
+            failureThreshold: 3
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
           volumeMounts:
+            - name: pod-tmp
+              mountPath: /tmp
             - name: cinder-bin
               mountPath: /tmp/cinder-api.sh
               subPath: cinder-api.sh
@@ -95,10 +110,12 @@ spec:
               mountPath: /etc/cinder/cinder.conf
               subPath: cinder.conf
               readOnly: true
+            {{- if .Values.conf.cinder.DEFAULT.log_config_append }}
             - name: cinder-etc
               mountPath: {{ .Values.conf.cinder.DEFAULT.log_config_append }}
               subPath: {{ base .Values.conf.cinder.DEFAULT.log_config_append }}
               readOnly: true
+            {{- end }}
             - name: cinder-etc
               mountPath: /etc/cinder/api-paste.ini
               subPath: api-paste.ini
@@ -107,19 +124,29 @@ spec:
               mountPath: /etc/cinder/policy.json
               subPath: policy.json
               readOnly: true
+            - name: cinder-etc
+              mountPath: /etc/cinder/api_audit_map.conf
+              subPath: api_audit_map.conf
+              readOnly: true
+            - name: cinder-etc
+              mountPath: {{ .Values.conf.cinder.DEFAULT.resource_query_filters_file }}
+              subPath: resource_filters.json
+              readOnly: true
             {{- if eq ( split "://" .Values.conf.cinder.coordination.backend_url )._0 "file" }}
             - name: cinder-coordination
               mountPath: {{ ( split "://" .Values.conf.cinder.coordination.backend_url )._1 }}
             {{- end }}
 {{ if $mounts_cinder_api.volumeMounts }}{{ toYaml $mounts_cinder_api.volumeMounts | indent 12 }}{{ end }}
       volumes:
+        - name: pod-tmp
+          emptyDir: {}
         - name: cinder-bin
           configMap:
             name: cinder-bin
             defaultMode: 0555
         - name: cinder-etc
-          configMap:
-            name: cinder-etc
+          secret:
+            secretName: cinder-etc
             defaultMode: 0444
         {{- if eq ( split "://" .Values.conf.cinder.coordination.backend_url )._0 "file" }}
         #NOTE (portdirect): this will need to be set to a shared mount amongst all cinder

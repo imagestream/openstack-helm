@@ -65,7 +65,7 @@ limitations under the License.
 {{- end -}}
 
 {{- if empty .Values.conf.nova.DEFAULT.transport_url -}}
-{{- $_ := tuple "oslo_messaging" "internal" "nova" "amqp" . | include "helm-toolkit.endpoints.authenticated_endpoint_uri_lookup" | set .Values.conf.nova.DEFAULT "transport_url" -}}
+{{- $_ := tuple "oslo_messaging" "internal" "nova" "amqp" . | include "helm-toolkit.endpoints.authenticated_transport_endpoint_uri_lookup" | set .Values.conf.nova.DEFAULT "transport_url" -}}
 {{- end -}}
 
 {{- if empty .Values.conf.nova.glance.api_servers -}}
@@ -189,7 +189,7 @@ limitations under the License.
 {{- end -}}
 
 {{- if empty .Values.conf.nova.ironic.memcache_secret_key -}}
-{{- $_ := randAlphaNum 64 | set .Values.conf.nova.ironic "memcache_secret_key" -}}
+{{- $_ := (default (randAlphaNum 64) .Values.endpoints.oslo_cache.auth.memcache_secret_key) | set .Values.conf.nova.ironic "memcache_secret_key" -}}
 {{- end -}}
 
 {{- if empty .Values.conf.nova.ironic.memcache_servers -}}
@@ -212,37 +212,38 @@ limitations under the License.
 {{- $formatter_fluent := dict "class" "oslo_log.formatters.FluentFormatter" -}}
 {{- $_ := set .Values.conf.logging "formatter_fluent" $formatter_fluent -}}
 {{- end -}}
+
+{{ $__nova_compute := dict }}
+{{ $_ := set $__nova_compute "config" .Values.conf.nova  }}
+{{ range .Values.conf.nova_compute_redactions }}
+{{   $_ := set $__nova_compute "config" (omit $__nova_compute.config .) }}
+{{ end }}
 ---
 apiVersion: v1
-kind: ConfigMap
+kind: Secret
 metadata:
   name: {{ $configMapName }}
+type: Opaque
 data:
-  rally_tests.yaml: |
-{{ toYaml .Values.conf.rally_tests.tests | indent 4 }}
-  api-paste.ini: |
-{{ include "helm-toolkit.utils.to_oslo_conf" .Values.conf.paste | indent 4 }}
-  policy.yaml: |
-{{ toYaml .Values.conf.policy | indent 4 }}
-  nova_sudoers: |
-{{ $envAll.Values.conf.nova_sudoers | indent 4 }}
-  rootwrap.conf: |
-{{- .Values.conf.rootwrap | indent 4 }}
+  rally_tests.yaml: {{ toYaml .Values.conf.rally_tests.tests | b64enc }}
+  api-paste.ini: {{ include "helm-toolkit.utils.to_oslo_conf" .Values.conf.paste | b64enc }}
+  policy.yaml: {{ toYaml .Values.conf.policy | b64enc }}
+  nova_sudoers: {{ $envAll.Values.conf.nova_sudoers | b64enc }}
+  rootwrap.conf: {{ .Values.conf.rootwrap | b64enc }}
 {{- range $key, $value := $envAll.Values.conf.rootwrap_filters }}
 {{- $filePrefix := replace "_" "-"  $key }}
-  {{ printf "%s.filters" $filePrefix }}: |
-{{ $value.content | indent 4 }}
+  {{ printf "%s.filters" $filePrefix }}: {{ $value.content | b64enc }}
 {{- end }}
-  nova.conf: |
-{{ include "helm-toolkit.utils.to_oslo_conf" .Values.conf.nova | indent 4 }}
-  logging.conf: |
-{{ include "helm-toolkit.utils.to_oslo_conf" .Values.conf.logging | indent 4 }}
-  nova-ironic.conf: |
-{{ include "helm-toolkit.utils.to_oslo_conf" .Values.conf.nova_ironic | indent 4 }}
-  wsgi-nova-placement.conf: |
-{{- tuple .Values.conf.wsgi_placement "etc/_wsgi-nova-placement.conf.tpl" . | include "helm-toolkit.utils.configmap_templater" }}
-  ssh-config.sh: |
-{{- tuple .Values.conf.ssh "etc/_ssh-config.tpl" . | include "helm-toolkit.utils.configmap_templater" }}
+  nova.conf: {{ include "helm-toolkit.utils.to_oslo_conf" .Values.conf.nova | b64enc }}
+  nova-compute.conf: {{ include "helm-toolkit.utils.to_oslo_conf" $__nova_compute.config | b64enc }}
+  logging.conf: {{ include "helm-toolkit.utils.to_oslo_conf" .Values.conf.logging | b64enc }}
+  api_audit_map.conf: {{ include "helm-toolkit.utils.to_oslo_conf" .Values.conf.api_audit_map | b64enc }}
+  nova-ironic.conf: {{ include "helm-toolkit.utils.to_oslo_conf" .Values.conf.nova_ironic | b64enc }}
+{{- include "helm-toolkit.snippets.values_template_renderer" (dict "envAll" $envAll "template" .Values.conf.wsgi_placement "key" "wsgi-nova-placement.conf" "format" "Secret" ) | indent 2 }}
+{{- include "helm-toolkit.snippets.values_template_renderer" (dict "envAll" $envAll "template" .Values.conf.ssh "key" "ssh-config" "format" "Secret" ) | indent 2 }}
+{{- if .Values.conf.security }}
+{{- include "helm-toolkit.snippets.values_template_renderer" (dict "envAll" $envAll "template" .Values.conf.security "key" "security.conf" "format" "Secret" ) | indent 2 }}
+{{- end }}
 {{- end }}
 {{- end }}
 {{- if .Values.manifests.configmap_etc }}

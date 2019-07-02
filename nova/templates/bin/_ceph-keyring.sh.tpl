@@ -19,6 +19,8 @@ limitations under the License.
 set -ex
 export HOME=/tmp
 
+cp -vf /etc/ceph/ceph.conf.template /etc/ceph/ceph.conf
+
 KEYRING=/etc/ceph/ceph.client.${CEPH_CINDER_USER}.keyring
 {{- if .Values.conf.ceph.cinder.keyring }}
 cat > ${KEYRING} <<EOF
@@ -26,14 +28,26 @@ cat > ${KEYRING} <<EOF
     key = {{ .Values.conf.ceph.cinder.keyring }}
 EOF
 {{- else }}
-if ! [ "x${CEPH_CINDER_USER}" == "xadmin"]; then
-  #NOTE(Portdirect): Determine proper privs to assign keyring
-  ceph auth get-or-create client.${CEPH_CINDER_USER} \
-    mon "allow *" \
-    osd "allow *" \
-    mgr "allow *" \
-    -o ${KEYRING}
-
+if ! [ "x${CEPH_CINDER_USER}" == "xadmin" ]; then
+  #
+  # If user is not client.admin, check if it already exists. If not create
+  # the user. If the cephx user does not exist make sure the caps are set
+  # according to best practices
+  #
+  if USERINFO=$(ceph auth get client.${CEPH_CINDER_USER}); then
+    echo "Cephx user client.${CEPH_CINDER_USER} already exist"
+    echo "Update user client.${CEPH_CINDER_USER} caps"
+    ceph auth caps client.${CEPH_CINDER_USER} \
+       mon "profile rbd" \
+       osd "profile rbd"
+    ceph auth get client.${CEPH_CINDER_USER} -o ${KEYRING}
+  else
+    echo "Creating Cephx user client.${CEPH_CINDER_USER}"
+    ceph auth get-or-create client.${CEPH_CINDER_USER} \
+      mon "profile rbd" \
+      osd "profile rbd" \
+      -o ${KEYRING}
+  fi
   rm -f /etc/ceph/ceph.client.admin.keyring
 fi
 {{- end }}

@@ -27,6 +27,8 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: horizon
+  annotations:
+    {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" }}
   labels:
 {{ tuple $envAll "horizon" "server" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 4 }}
 spec:
@@ -40,10 +42,12 @@ spec:
       labels:
 {{ tuple $envAll "horizon" "server" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
       annotations:
+{{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
     spec:
       serviceAccountName: {{ $serviceAccountName }}
+{{ dict "envAll" $envAll "application" "horizon" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 6 }}
       affinity:
 {{ tuple $envAll "horizon" "server" | include "helm-toolkit.snippets.kubernetes_pod_anti_affinity" | indent 8 }}
       nodeSelector:
@@ -55,8 +59,10 @@ spec:
         - name: horizon
 {{ tuple $envAll "horizon" | include "helm-toolkit.snippets.image" | indent 10 }}
 {{ tuple $envAll $envAll.Values.pod.resources.server | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
+{{ dict "envAll" $envAll "application" "horizon" "container" "horizon" | include "helm-toolkit.snippets.kubernetes_container_security_context" | indent 10 }}
           securityContext:
             runAsUser: 0
+            allowPrivilegeEscalation: false
           command:
             - /tmp/horizon.sh
             - start
@@ -76,7 +82,17 @@ spec:
               port: {{ tuple "dashboard" "internal" "web" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
             initialDelaySeconds: 15
             periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              scheme: HTTP
+              path: /
+              port: {{ tuple "dashboard" "internal" "web" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
+            initialDelaySeconds: 180
+            periodSeconds: 60
+            timeoutSeconds: 5
           volumeMounts:
+            - name: pod-tmp
+              mountPath: /tmp
             - name: static-horizon
               mountPath: /var/www/html/
             - name: horizon-bin
@@ -88,9 +104,15 @@ spec:
               subPath: manage.py
               readOnly: true
             - name: horizon-etc
-              mountPath: /etc/apache2/sites-enabled/000-default.conf
+              mountPath: {{ .Values.conf.software.apache2.site_dir }}/000-default.conf
               subPath: horizon.conf
               readOnly: true
+            {{- if .Values.conf.horizon.security }}
+            - name: horizon-etc
+              mountPath: {{ .Values.conf.software.apache2.conf_dir }}/security.conf
+              subPath: security.conf
+              readOnly: true
+            {{- end }}
             - name: horizon-bin
               mountPath: /var/www/cgi-bin/horizon/django.wsgi
               subPath: django.wsgi
@@ -108,6 +130,8 @@ spec:
             {{- end }}
 {{ if $mounts_horizon.volumeMounts }}{{ toYaml $mounts_horizon.volumeMounts | indent 12 }}{{ end }}
       volumes:
+        - name: pod-tmp
+          emptyDir: {}
         - name: wsgi-horizon
           emptyDir: {}
         - name: static-horizon
@@ -117,8 +141,8 @@ spec:
             name: horizon-bin
             defaultMode: 0555
         - name: horizon-etc
-          configMap:
-            name: horizon-etc
+          secret:
+            secretName: horizon-etc
             defaultMode: 0444
 {{ if $mounts_horizon.volumes }}{{ toYaml $mounts_horizon.volumes | indent 8 }}{{ end }}
 {{- end }}

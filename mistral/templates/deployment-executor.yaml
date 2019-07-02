@@ -27,6 +27,8 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: mistral-executor
+  annotations:
+    {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" }}
   labels:
 {{ tuple $envAll "mistral" "executor" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 4 }}
 spec:
@@ -40,6 +42,7 @@ spec:
       labels:
 {{ tuple $envAll "mistral" "executor" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
       annotations:
+{{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
     spec:
@@ -59,6 +62,8 @@ spec:
           command:
             - /tmp/mistral-executor.sh
           volumeMounts:
+            - name: pod-tmp
+              mountPath: /tmp
             - name: pod-etc-mistral
               mountPath: /etc/mistral
             - name: mistral-bin
@@ -69,12 +74,16 @@ spec:
               mountPath: /etc/mistral/mistral.conf
               subPath: mistral.conf
               readOnly: true
+            {{- if .Values.conf.mistral.DEFAULT.log_config_append }}
             - name: mistral-etc
               mountPath: {{ .Values.conf.mistral.DEFAULT.log_config_append }}
               subPath: {{ base .Values.conf.mistral.DEFAULT.log_config_append }}
               readOnly: true
+            {{- end }}
 {{ if $mounts_mistral_executor.volumeMounts }}{{ toYaml $mounts_mistral_executor.volumeMounts | indent 12 }}{{ end }}
       volumes:
+        - name: pod-tmp
+          emptyDir: {}
         - name: pod-etc-mistral
           emptyDir: {}
         - name: mistral-bin
@@ -82,8 +91,8 @@ spec:
             name: mistral-bin
             defaultMode: 0555
         - name: mistral-etc
-          configMap:
-            name: mistral-etc
+          secret:
+            secretName: mistral-etc
             defaultMode: 0444
 {{ if $mounts_mistral_executor.volumes }}{{ toYaml $mounts_mistral_executor.volumes | indent 8 }}{{ end }}
 {{- end }}
