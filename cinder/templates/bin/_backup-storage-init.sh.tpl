@@ -66,6 +66,6 @@ type: kubernetes.io/rbd
 data:
   key: $( echo ${ENCODED_KEYRING} )
 EOF
-  kubectl apply --namespace ${NAMESPACE} -f ${SECRET}
+  kubectl apply --validate=false --namespace ${NAMESPACE} -f ${SECRET}
 
 fi
